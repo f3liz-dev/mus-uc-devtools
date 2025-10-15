@@ -1,7 +1,6 @@
 use std::process::Command;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::env;
 use tempfile::TempDir;
 
 pub struct CSSBundler {
@@ -9,7 +8,7 @@ pub struct CSSBundler {
     bundler_type: BundlerType,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum BundlerType {
     PostCSS,
     Parcel,

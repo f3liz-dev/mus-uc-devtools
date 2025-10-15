@@ -1,20 +1,21 @@
-use marionette::{MarionetteConnection, MarionetteSettings};
-use serde_json::{json, Value};
+use crate::marionette_client::{MarionetteConnection, MarionetteSettings};
 use std::collections::HashMap;
-use std::fs;
-use std::io::{self, Write};
-use std::path::Path;
-use clap::{App, Arg, SubCommand};
 
-struct ChromeCSSManager {
+pub struct ChromeCSSManager {
     connection: MarionetteConnection,
     loaded_sheets: HashMap<String, String>,
 }
 
 impl ChromeCSSManager {
-    fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let settings = MarionetteSettings::default();
-        let connection = MarionetteConnection::connect(&settings)?;
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        let settings = MarionetteSettings::new();
+        let mut connection = MarionetteConnection::connect(&settings)?;
+        
+        // Set context to chrome for privileged operations
+        // This allows access to XPCOM components like nsIStyleSheetService
+        // which is required for userChrome CSS manipulation.
+        // See GECKODRIVER_ANALYSIS.md for details on chrome context.
+        connection.set_context("chrome")?;
         
         Ok(ChromeCSSManager {
             connection,
@@ -22,7 +23,7 @@ impl ChromeCSSManager {
         })
     }
 
-    fn initialize_chrome_context(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn initialize_chrome_context(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // Switch to chrome context for privileged operations
         let chrome_script = r#"
             // Initialize ChromeCSS class in chrome context with unique variable names
@@ -70,7 +71,7 @@ impl ChromeCSSManager {
         Ok(())
     }
 
-    fn load_css(&mut self, css_content: &str, id: Option<&str>) -> Result<String, Box<dyn std::error::Error>> {
+    pub fn load_css(&mut self, css_content: &str, id: Option<&str>) -> Result<String, Box<dyn std::error::Error>> {
         let script = if let Some(sheet_id) = id {
             format!(r#"
                 const result = window.__$ff_chrome_css_mgr$__.load(`{}`, '{}');
@@ -90,7 +91,7 @@ impl ChromeCSSManager {
         Ok(sheet_id)
     }
 
-    fn unload_css(&mut self, id: &str) -> Result<bool, Box<dyn std::error::Error>> {
+    pub fn unload_css(&mut self, id: &str) -> Result<bool, Box<dyn std::error::Error>> {
         let script = format!(r#"
             const result = window.__$ff_chrome_css_mgr$__.unload('{}');
             return result;
@@ -106,7 +107,7 @@ impl ChromeCSSManager {
         Ok(success)
     }
 
-    fn clear_all(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn clear_all(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let script = r#"
             window.__$ff_chrome_css_mgr$__.clear();
             return "cleared";
@@ -118,7 +119,7 @@ impl ChromeCSSManager {
         Ok(())
     }
 
-    fn list_loaded(&self) -> Vec<String> {
+    pub fn list_loaded(&self) -> Vec<String> {
         self.loaded_sheets.keys().cloned().collect()
     }
 }
