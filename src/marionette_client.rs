@@ -10,7 +10,6 @@
 /// - Script execution in privileged chrome context
 /// 
 /// See GECKODRIVER_ANALYSIS.md for detailed findings from geckodriver study.
-
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
