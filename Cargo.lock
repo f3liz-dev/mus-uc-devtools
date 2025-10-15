@@ -138,9 +138,9 @@ dependencies = [
 
 [[package]]
 name = "marionette"
-version = "0.3.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38c1c2fa60208e240319aab7ec985220944e4d4a8920eb99f1855b6e6e6ab169"
+checksum = "7119b584459086fc14cfd12efd09f15378d3c1f9a8f21482d06feaae76987fb6"
 dependencies = [
  "serde",
  "serde_json",
