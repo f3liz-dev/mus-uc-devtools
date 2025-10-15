@@ -1,10 +1,5 @@
-use marionette::{MarionetteConnection, MarionetteSettings};
-use serde_json::{json, Value};
+use crate::marionette_client::{MarionetteConnection, MarionetteSettings};
 use std::collections::HashMap;
-use std::fs;
-use std::io::{self, Write};
-use std::path::Path;
-use clap::{App, Arg, SubCommand};
 
 pub struct ChromeCSSManager {
     connection: MarionetteConnection,
@@ -13,8 +8,14 @@ pub struct ChromeCSSManager {
 
 impl ChromeCSSManager {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let settings = MarionetteSettings::default();
-        let connection = MarionetteConnection::connect(&settings)?;
+        let settings = MarionetteSettings::new();
+        let mut connection = MarionetteConnection::connect(&settings)?;
+        
+        // Set context to chrome for privileged operations
+        // This allows access to XPCOM components like nsIStyleSheetService
+        // which is required for userChrome CSS manipulation.
+        // See GECKODRIVER_ANALYSIS.md for details on chrome context.
+        connection.set_context("chrome")?;
         
         Ok(ChromeCSSManager {
             connection,
