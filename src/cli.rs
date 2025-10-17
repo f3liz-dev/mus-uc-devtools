@@ -29,6 +29,19 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
                 )
         )
         .subcommand(
+            SubCommand::with_name("register-manifest")
+                .about("Register chrome.manifest to enable chrome:// URIs in CSS imports")
+                .arg(
+                    Arg::with_name("manifest")
+                        .short("m")
+                        .long("manifest")
+                        .value_name("MANIFEST")
+                        .help("Path to chrome.manifest file")
+                        .required(true)
+                        .takes_value(true)
+                )
+        )
+        .subcommand(
             SubCommand::with_name("unload")
                 .about("Unload CSS by ID")
                 .arg(
@@ -56,6 +69,18 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
     manager.initialize_chrome_context()?;
 
     match matches.subcommand() {
+        ("register-manifest", Some(sub_matches)) => {
+            let manifest_path = sub_matches.value_of("manifest").unwrap();
+            let path = Path::new(manifest_path);
+            
+            if !path.exists() {
+                return Err(format!("chrome.manifest file not found: {}", manifest_path).into());
+            }
+            
+            manager.register_chrome_manifest(path)?;
+            println!("chrome.manifest registered: {}", manager.get_registered_manifest().unwrap_or("unknown"));
+        }
+        
         ("load", Some(sub_matches)) => {
             let css_content = if let Some(file_path) = sub_matches.value_of("file") {
                 fs::read_to_string(file_path)?

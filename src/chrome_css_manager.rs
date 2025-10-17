@@ -1,9 +1,12 @@
 use crate::marionette_client::{MarionetteConnection, MarionetteSettings};
+use crate::chrome_manifest::ChromeManifestRegistrar;
 use std::collections::HashMap;
+use std::path::Path;
 
 pub struct ChromeCSSManager {
     connection: MarionetteConnection,
     loaded_sheets: HashMap<String, String>,
+    manifest_registrar: ChromeManifestRegistrar,
 }
 
 impl ChromeCSSManager {
@@ -20,6 +23,7 @@ impl ChromeCSSManager {
         Ok(ChromeCSSManager {
             connection,
             loaded_sheets: HashMap::new(),
+            manifest_registrar: ChromeManifestRegistrar::new(),
         })
     }
 
@@ -121,5 +125,15 @@ impl ChromeCSSManager {
 
     pub fn list_loaded(&self) -> Vec<String> {
         self.loaded_sheets.keys().cloned().collect()
+    }
+
+    /// Register a chrome.manifest file to enable chrome:// URI loading in CSS
+    /// This allows CSS files to use @import 'mus-uc/<relative-path>' syntax
+    pub fn register_chrome_manifest(&mut self, manifest_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+        self.manifest_registrar.register_manifest(manifest_path, &mut self.connection)
+    }
+
+    pub fn get_registered_manifest(&self) -> Option<&str> {
+        self.manifest_registrar.get_registered_path()
     }
 }

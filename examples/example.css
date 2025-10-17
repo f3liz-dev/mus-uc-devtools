@@ -1,0 +1,18 @@
+/* Example CSS file demonstrating chrome.manifest usage */
+
+/* Import from registered chrome:// URI */
+/* After registering chrome.manifest, you can use: */
+/* @import 'chrome://mus-uc/content/components/button.css'; */
+
+/* This is the recommended approach instead of bundling */
+/* The chrome.manifest maps 'mus-uc' to your development directory */
+
+/* Example styles */
+#nav-bar {
+    background: linear-gradient(to bottom, #f0f0f0, #e0e0e0) !important;
+}
+
+#urlbar {
+    border-radius: 8px !important;
+    padding: 4px 8px !important;
+}
