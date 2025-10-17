@@ -1,14 +1,14 @@
 /// Simple Marionette protocol client for Firefox automation
-/// 
+///
 /// This module implements a basic client for the Marionette protocol (version 3)
 /// used by Firefox for automation. The implementation is based on analysis of the
 /// mozilla/geckodriver source code.
-/// 
+///
 /// Key features:
 /// - TCP-based communication with Firefox
 /// - Context switching between 'content' and 'chrome' privilege levels
 /// - Script execution in privileged chrome context
-/// 
+///
 /// See GECKODRIVER_ANALYSIS.md for detailed findings from geckodriver study.
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
@@ -47,13 +47,17 @@ impl MarionetteClient {
         let mut reader = BufReader::new(stream.try_clone()?);
         let mut handshake_line = String::new();
         reader.read_line(&mut handshake_line)?;
-        
+
         let handshake: MarionetteHandshake = serde_json::from_str(&handshake_line)?;
-        
+
         if handshake.application_type != "gecko" {
-            return Err(format!("Unexpected application type: {}", handshake.application_type).into());
+            return Err(format!(
+                "Unexpected application type: {}",
+                handshake.application_type
+            )
+            .into());
         }
-        
+
         if handshake.protocol != 3 {
             return Err(format!("Unsupported protocol version: {}", handshake.protocol).into());
         }
@@ -64,10 +68,14 @@ impl MarionetteClient {
         })
     }
 
-    pub fn send_command(&mut self, name: &str, params: Value) -> Result<Value, Box<dyn std::error::Error>> {
+    pub fn send_command(
+        &mut self,
+        name: &str,
+        params: Value,
+    ) -> Result<Value, Box<dyn std::error::Error>> {
         self.message_id += 1;
         let msg_id = self.message_id;
-        
+
         let msg = MarionetteMessage {
             id: Some(msg_id),
             name: name.to_string(),
@@ -76,7 +84,7 @@ impl MarionetteClient {
 
         let msg_str = serde_json::to_string(&msg)?;
         let msg_bytes = format!("{}:{}", msg_str.len(), msg_str);
-        
+
         self.stream.write_all(msg_bytes.as_bytes())?;
         self.stream.flush()?;
 
@@ -84,28 +92,27 @@ impl MarionetteClient {
         let mut reader = BufReader::new(self.stream.try_clone()?);
         let mut response_line = String::new();
         reader.read_line(&mut response_line)?;
-        
+
         // Parse response - format is "len:json"
-        let colon_pos = response_line.find(':')
-            .ok_or("Invalid response format")?;
+        let colon_pos = response_line.find(':').ok_or("Invalid response format")?;
         let json_str = &response_line[colon_pos + 1..];
-        
+
         let response: Value = serde_json::from_str(json_str)?;
-        
+
         // Check for errors
         if let Some(error) = response.get("error") {
             return Err(format!("Marionette error: {}", error).into());
         }
-        
+
         Ok(response.get("value").unwrap_or(&Value::Null).clone())
     }
 
     /// Set the execution context for subsequent commands
-    /// 
+    ///
     /// Context can be:
     /// - "content": Regular web page context (default)
     /// - "chrome": Privileged browser context with XPCOM access
-    /// 
+    ///
     /// This is critical for executing scripts that need access to Firefox internals
     /// like nsIStyleSheetService for userChrome CSS manipulation.
     pub fn set_context(&mut self, context: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -114,7 +121,11 @@ impl MarionetteClient {
         Ok(())
     }
 
-    pub fn execute_script(&mut self, script: &str, args: Option<Vec<Value>>) -> Result<Value, Box<dyn std::error::Error>> {
+    pub fn execute_script(
+        &mut self,
+        script: &str,
+        args: Option<Vec<Value>>,
+    ) -> Result<Value, Box<dyn std::error::Error>> {
         let params = json!({
             "script": script,
             "args": args.unwrap_or_default()
@@ -152,7 +163,11 @@ impl MarionetteConnection {
         self.client.set_context(context)
     }
 
-    pub fn execute_script(&mut self, script: &str, args: Option<Vec<Value>>) -> Result<Value, Box<dyn std::error::Error>> {
+    pub fn execute_script(
+        &mut self,
+        script: &str,
+        args: Option<Vec<Value>>,
+    ) -> Result<Value, Box<dyn std::error::Error>> {
         self.client.execute_script(script, args)
     }
 }

@@ -27,6 +27,40 @@ For more details on the chrome-privileged context implementation, see [GECKODRIV
 
 ## Usage
 
+### Registering chrome.manifest (Recommended)
+
+The recommended approach is to register a `chrome.manifest` file instead of bundling CSS. This allows you to use `@import` statements with `chrome://` URIs in your CSS files.
+
+```bash
+# First, register your chrome.manifest
+./chrome-css register-manifest -m /path/to/your/chrome.manifest
+
+# Then load CSS that can use chrome:// URIs
+./chrome-css load -f path/to/style.css
+```
+
+**chrome.manifest example:**
+```
+# Map 'mus-uc' namespace to your development directory
+content mus-uc ./
+
+# Map to specific subdirectories
+content mus-uc-components ./components/
+content mus-uc-themes ./themes/
+```
+
+**CSS with chrome:// imports:**
+```css
+/* Import from registered chrome:// URIs */
+@import 'chrome://mus-uc/content/components/button.css';
+@import 'chrome://mus-uc-themes/content/dark.css';
+
+/* Your custom styles */
+#nav-bar { background: red !important; }
+```
+
+### Basic CSS Loading
+
 ```bash
 # Load CSS from a file
 ./chrome-css load -f path/to/style.css

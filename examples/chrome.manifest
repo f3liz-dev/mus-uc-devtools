@@ -1,0 +1,18 @@
+# Example chrome.manifest for mus-uc-devtools
+# This file should be placed in your development directory
+
+# Register content URIs that can be used in CSS @import statements
+# Format: content <namespace> <relative-path-to-directory>
+
+# Map 'mus-uc' namespace to current directory
+# Usage in CSS: @import 'chrome://mus-uc/content/style.css';
+content mus-uc ./
+
+# You can also map to specific subdirectories
+# content mus-uc-components ./components/
+# content mus-uc-themes ./themes/
+
+# For skin (theme) resources
+# skin mus-uc-skin classic/1.0 ./skins/
+
+# Note: Paths are relative to the location of this chrome.manifest file

@@ -1,25 +1,29 @@
+use crate::chrome_manifest::ChromeManifestRegistrar;
 use crate::marionette_client::{MarionetteConnection, MarionetteSettings};
 use std::collections::HashMap;
+use std::path::Path;
 
 pub struct ChromeCSSManager {
     connection: MarionetteConnection,
     loaded_sheets: HashMap<String, String>,
+    manifest_registrar: ChromeManifestRegistrar,
 }
 
 impl ChromeCSSManager {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let settings = MarionetteSettings::new();
         let mut connection = MarionetteConnection::connect(&settings)?;
-        
+
         // Set context to chrome for privileged operations
         // This allows access to XPCOM components like nsIStyleSheetService
         // which is required for userChrome CSS manipulation.
         // See GECKODRIVER_ANALYSIS.md for details on chrome context.
         connection.set_context("chrome")?;
-        
+
         Ok(ChromeCSSManager {
             connection,
             loaded_sheets: HashMap::new(),
+            manifest_registrar: ChromeManifestRegistrar::new(),
         })
     }
 
@@ -71,39 +75,54 @@ impl ChromeCSSManager {
         Ok(())
     }
 
-    pub fn load_css(&mut self, css_content: &str, id: Option<&str>) -> Result<String, Box<dyn std::error::Error>> {
+    pub fn load_css(
+        &mut self,
+        css_content: &str,
+        id: Option<&str>,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         let script = if let Some(sheet_id) = id {
-            format!(r#"
+            format!(
+                r#"
                 const result = window.__$ff_chrome_css_mgr$__.load(`{}`, '{}');
                 return result;
-            "#, css_content.replace('`', r"\`"), sheet_id)
+            "#,
+                css_content.replace('`', r"\`"),
+                sheet_id
+            )
         } else {
-            format!(r#"
+            format!(
+                r#"
                 const result = window.__$ff_chrome_css_mgr$__.load(`{}`);
                 return result;
-            "#, css_content.replace('`', r"\`"))
+            "#,
+                css_content.replace('`', r"\`")
+            )
         };
 
         let result = self.connection.execute_script(&script, None)?;
         let sheet_id = result.as_str().unwrap_or("unknown").to_string();
-        self.loaded_sheets.insert(sheet_id.clone(), css_content.to_string());
-        
+        self.loaded_sheets
+            .insert(sheet_id.clone(), css_content.to_string());
+
         Ok(sheet_id)
     }
 
     pub fn unload_css(&mut self, id: &str) -> Result<bool, Box<dyn std::error::Error>> {
-        let script = format!(r#"
+        let script = format!(
+            r#"
             const result = window.__$ff_chrome_css_mgr$__.unload('{}');
             return result;
-        "#, id);
+        "#,
+            id
+        );
 
         let result = self.connection.execute_script(&script, None)?;
         let success = result.as_bool().unwrap_or(false);
-        
+
         if success {
             self.loaded_sheets.remove(id);
         }
-        
+
         Ok(success)
     }
 
@@ -115,11 +134,25 @@ impl ChromeCSSManager {
 
         self.connection.execute_script(script, None)?;
         self.loaded_sheets.clear();
-        
+
         Ok(())
     }
 
     pub fn list_loaded(&self) -> Vec<String> {
         self.loaded_sheets.keys().cloned().collect()
+    }
+
+    /// Register a chrome.manifest file to enable chrome:// URI loading in CSS
+    /// This allows CSS files to use @import 'mus-uc/<relative-path>' syntax
+    pub fn register_chrome_manifest(
+        &mut self,
+        manifest_path: &Path,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.manifest_registrar
+            .register_manifest(manifest_path, &mut self.connection)
+    }
+
+    pub fn get_registered_manifest(&self) -> Option<&str> {
+        self.manifest_registrar.get_registered_path()
     }
 }

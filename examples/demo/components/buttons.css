@@ -1,0 +1,13 @@
+/* Component: Buttons */
+
+.button-custom {
+    background: linear-gradient(to bottom, #667eea 0%, #764ba2 100%) !important;
+    border: none !important;
+    border-radius: 6px !important;
+    color: white !important;
+    padding: 8px 16px !important;
+}
+
+.button-custom:hover {
+    opacity: 0.9 !important;
+}

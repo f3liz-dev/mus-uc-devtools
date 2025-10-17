@@ -1,8 +1,8 @@
 use crate::ChromeCSSManager;
+use clap::{App, Arg, SubCommand};
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::Path;
-use clap::{App, Arg, SubCommand};
 
 pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
     let matches = App::new("Firefox Chrome CSS CLI")
@@ -17,7 +17,7 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
                         .long("file")
                         .value_name("FILE")
                         .help("CSS file to load")
-                        .takes_value(true)
+                        .takes_value(true),
                 )
                 .arg(
                     Arg::with_name("id")
@@ -25,8 +25,21 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
                         .long("id")
                         .value_name("ID")
                         .help("Custom ID for the stylesheet")
-                        .takes_value(true)
-                )
+                        .takes_value(true),
+                ),
+        )
+        .subcommand(
+            SubCommand::with_name("register-manifest")
+                .about("Register chrome.manifest to enable chrome:// URIs in CSS imports")
+                .arg(
+                    Arg::with_name("manifest")
+                        .short("m")
+                        .long("manifest")
+                        .value_name("MANIFEST")
+                        .help("Path to chrome.manifest file")
+                        .required(true)
+                        .takes_value(true),
+                ),
         )
         .subcommand(
             SubCommand::with_name("unload")
@@ -35,27 +48,33 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
                     Arg::with_name("id")
                         .required(true)
                         .help("ID of stylesheet to unload")
-                        .index(1)
-                )
+                        .index(1),
+                ),
         )
-        .subcommand(
-            SubCommand::with_name("clear")
-                .about("Clear all loaded stylesheets")
-        )
-        .subcommand(
-            SubCommand::with_name("list")
-                .about("List all loaded stylesheets")
-        )
-        .subcommand(
-            SubCommand::with_name("interactive")
-                .about("Start interactive mode")
-        )
+        .subcommand(SubCommand::with_name("clear").about("Clear all loaded stylesheets"))
+        .subcommand(SubCommand::with_name("list").about("List all loaded stylesheets"))
+        .subcommand(SubCommand::with_name("interactive").about("Start interactive mode"))
         .get_matches();
 
     let mut manager = ChromeCSSManager::new()?;
     manager.initialize_chrome_context()?;
 
     match matches.subcommand() {
+        ("register-manifest", Some(sub_matches)) => {
+            let manifest_path = sub_matches.value_of("manifest").unwrap();
+            let path = Path::new(manifest_path);
+
+            if !path.exists() {
+                return Err(format!("chrome.manifest file not found: {}", manifest_path).into());
+            }
+
+            manager.register_chrome_manifest(path)?;
+            println!(
+                "chrome.manifest registered: {}",
+                manager.get_registered_manifest().unwrap_or("unknown")
+            );
+        }
+
         ("load", Some(sub_matches)) => {
             let css_content = if let Some(file_path) = sub_matches.value_of("file") {
                 fs::read_to_string(file_path)?
@@ -70,7 +89,7 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
             let sheet_id = manager.load_css(&css_content, id)?;
             println!("CSS loaded with ID: {}", sheet_id);
         }
-        
+
         ("unload", Some(sub_matches)) => {
             let id = sub_matches.value_of("id").unwrap();
             if manager.unload_css(id)? {
@@ -79,12 +98,12 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Failed to unload CSS: {}", id);
             }
         }
-        
+
         ("clear", Some(_)) => {
             manager.clear_all()?;
             println!("All CSS cleared");
         }
-        
+
         ("list", Some(_)) => {
             let loaded = manager.list_loaded();
             if loaded.is_empty() {
@@ -96,11 +115,11 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        
+
         ("interactive", Some(_)) => {
             run_interactive_mode(&mut manager)?;
         }
-        
+
         _ => {
             println!("Use --help for usage information");
         }
@@ -109,23 +128,25 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub fn run_interactive_mode(manager: &mut ChromeCSSManager) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run_interactive_mode(
+    manager: &mut ChromeCSSManager,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("Firefox Chrome CSS Interactive Mode");
     println!("Commands: load [filepath] [id] [-b], unload <id>, clear, list, quit");
-    
+
     loop {
         print!("> ");
         io::stdout().flush()?;
-        
+
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
         let input = input.trim();
-        
+
         let parts: Vec<&str> = input.split_whitespace().collect();
         if parts.is_empty() {
             continue;
         }
-        
+
         match parts[0] {
             "load" => {
                 let css_content = if parts.len() >= 2 {
@@ -143,7 +164,10 @@ pub fn run_interactive_mode(manager: &mut ChromeCSSManager) -> Result<(), Box<dy
                             }
                         }
                     } else {
-                        println!("File not found: {}. Enter CSS content manually:", potential_path);
+                        println!(
+                            "File not found: {}. Enter CSS content manually:",
+                            potential_path
+                        );
                         let mut css_lines = Vec::new();
                         println!("Enter CSS content (empty line to finish):");
                         loop {
@@ -171,16 +195,20 @@ pub fn run_interactive_mode(manager: &mut ChromeCSSManager) -> Result<(), Box<dy
                     }
                     css_lines.join("\n")
                 };
-                
+
                 if !css_content.is_empty() {
-                    let custom_id = if parts.len() >= 3 { Some(parts[2]) } else { None };
+                    let custom_id = if parts.len() >= 3 {
+                        Some(parts[2])
+                    } else {
+                        None
+                    };
                     match manager.load_css(&css_content, custom_id) {
                         Ok(id) => println!("CSS loaded with ID: {}", id),
                         Err(e) => println!("Error loading CSS: {}", e),
                     }
                 }
             }
-            
+
             "unload" => {
                 if parts.len() < 2 {
                     println!("Usage: unload <id>");
@@ -192,14 +220,12 @@ pub fn run_interactive_mode(manager: &mut ChromeCSSManager) -> Result<(), Box<dy
                     Err(e) => println!("Error: {}", e),
                 }
             }
-            
-            "clear" => {
-                match manager.clear_all() {
-                    Ok(()) => println!("All CSS cleared"),
-                    Err(e) => println!("Error: {}", e),
-                }
-            }
-            
+
+            "clear" => match manager.clear_all() {
+                Ok(()) => println!("All CSS cleared"),
+                Err(e) => println!("Error: {}", e),
+            },
+
             "list" => {
                 let loaded = manager.list_loaded();
                 if loaded.is_empty() {
@@ -211,18 +237,20 @@ pub fn run_interactive_mode(manager: &mut ChromeCSSManager) -> Result<(), Box<dy
                     }
                 }
             }
-            
+
             "quit" | "exit" => {
                 println!("Goodbye!");
                 break;
             }
-            
+
             _ => {
                 println!("Unknown command: {}", parts[0]);
-                println!("Available commands: load [filepath] [id], unload <id>, clear, list, quit");
+                println!(
+                    "Available commands: load [filepath] [id], unload <id>, clear, list, quit"
+                );
             }
         }
     }
-    
+
     Ok(())
 }
