@@ -1,0 +1,9 @@
+# Demo chrome.manifest for testing
+# This file demonstrates the chrome.manifest registration feature
+
+# Map 'mus-uc' namespace to the demo directory
+content mus-uc ./
+
+# Map subdirectories for components and themes
+content mus-uc-components ./components/
+content mus-uc-themes ./themes/

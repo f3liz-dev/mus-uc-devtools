@@ -1,0 +1,17 @@
+/* Main CSS file demonstrating chrome:// URI imports */
+
+/* Import component styles using chrome:// URIs registered via chrome.manifest */
+@import 'chrome://mus-uc-components/content/buttons.css';
+@import 'chrome://mus-uc-components/content/tabs.css';
+
+/* Import theme using chrome:// URI */
+@import 'chrome://mus-uc-themes/content/dark-theme.css';
+
+/* Additional custom styles */
+#nav-bar {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+#urlbar-container {
+    padding: 4px !important;
+}
