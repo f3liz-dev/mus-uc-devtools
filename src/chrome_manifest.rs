@@ -1,14 +1,13 @@
 use std::path::Path;
 
+#[derive(Default)]
 pub struct ChromeManifestRegistrar {
     manifest_path: Option<String>,
 }
 
 impl ChromeManifestRegistrar {
     pub fn new() -> Self {
-        ChromeManifestRegistrar {
-            manifest_path: None,
-        }
+        Self::default()
     }
 
     /// Register a chrome.manifest file with Firefox
