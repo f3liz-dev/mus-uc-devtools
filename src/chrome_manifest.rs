@@ -19,11 +19,11 @@ impl ChromeManifestRegistrar {
         connection: &mut crate::marionette_client::MarionetteConnection,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let absolute_path = manifest_path.canonicalize()?;
-        let path_str = absolute_path.to_str()
-            .ok_or("Invalid path encoding")?;
+        let path_str = absolute_path.to_str().ok_or("Invalid path encoding")?;
 
         // Script to register chrome.manifest using ComponentRegistrar
-        let script = format!(r#"
+        let script = format!(
+            r#"
             try {{
                 // Create nsIFile instance for the chrome.manifest
                 let cmanifest = Cc['@mozilla.org/file/local;1'].createInstance(Ci.nsIFile);
@@ -37,7 +37,9 @@ impl ChromeManifestRegistrar {
             }} catch (e) {{
                 return {{ success: false, error: e.toString() }};
             }}
-        "#, path_str, path_str);
+        "#,
+            path_str, path_str
+        );
 
         let result = connection.execute_script(&script, None)?;
 
@@ -47,7 +49,8 @@ impl ChromeManifestRegistrar {
                 self.manifest_path = Some(path_str.to_string());
                 Ok(())
             } else {
-                let error = result.get("error")
+                let error = result
+                    .get("error")
                     .and_then(|v| v.as_str())
                     .unwrap_or("Unknown error");
                 Err(format!("Failed to register chrome.manifest: {}", error).into())

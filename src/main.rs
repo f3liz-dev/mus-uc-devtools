@@ -1,8 +1,8 @@
-mod chrome_css_manager;
-mod cli;
 mod bundler;
-mod marionette_client;
+mod chrome_css_manager;
 mod chrome_manifest;
+mod cli;
+mod marionette_client;
 
 pub use chrome_css_manager::ChromeCSSManager;
 pub use chrome_manifest::ChromeManifestRegistrar;
