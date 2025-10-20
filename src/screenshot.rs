@@ -1,5 +1,5 @@
 use crate::marionette_client::MarionetteConnection;
-use base64::{Engine as _, engine::general_purpose};
+use base64::{engine::general_purpose, Engine as _};
 use std::fs;
 use std::path::Path;
 
@@ -100,7 +100,8 @@ impl ScreenshotManager {
         let base64_data = parts[1];
 
         // Decode base64 data
-        let image_data = general_purpose::STANDARD.decode(base64_data)
+        let image_data = general_purpose::STANDARD
+            .decode(base64_data)
             .map_err(|e| format!("Failed to decode base64 data: {}", e))?;
 
         // Write to file

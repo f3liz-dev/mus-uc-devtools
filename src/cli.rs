@@ -1,13 +1,13 @@
-use crate::{ChromeCSSManager, ScreenshotManager};
 use crate::marionette_client::{MarionetteConnection, MarionetteSettings};
-use clap::{App, Arg, SubCommand};
+use crate::{ChromeCSSManager, ScreenshotManager};
+use clap::{crate_version, App, Arg, SubCommand};
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::Path;
 
 pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
     let matches = App::new("mus-uc-devtools")
-        .version("1.0.0")
+        .version(crate_version!())
         .about("Loads userChrome CSS into Firefox chrome context via Marionette")
         .subcommand(
             SubCommand::with_name("load")
@@ -155,7 +155,7 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
         ("watch", Some(sub_matches)) => {
             let file_path = sub_matches.value_of("file").unwrap();
             let id = sub_matches.value_of("id");
-            
+
             println!("Watching {} for changes (Ctrl+C to stop)...", file_path);
             manager.watch_and_reload(file_path, id)?;
         }
@@ -200,7 +200,7 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
             let mut screenshot_manager = ScreenshotManager::new(connection)?;
 
             screenshot_manager.screenshot_to_file(Path::new(output_path), selector)?;
-            
+
             if let Some(sel) = selector {
                 println!("Screenshot of element '{}' saved to: {}", sel, output_path);
             } else {
@@ -238,13 +238,13 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
             // Create a new connection for script execution
             let settings = MarionetteSettings::new();
             let mut connection = MarionetteConnection::connect(&settings)?;
-            
+
             // Switch to chrome context
             connection.set_context("chrome")?;
-            
+
             // Execute the script
             let result = connection.execute_script(&js_content, args)?;
-            
+
             // Print the result
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
