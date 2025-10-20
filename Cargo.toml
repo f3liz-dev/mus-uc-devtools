@@ -2,6 +2,13 @@
 name = "mus-uc-devtools"
 version = "0.1.0"
 edition = "2021"
+authors = ["mus-uc-devtools contributors"]
+description = "A tool to develop userChrome CSS for Firefox using the Marionette protocol"
+license = "MIT"
+repository = "https://github.com/f3liz-dev/mus-uc-devtools"
+readme = "README.md"
+keywords = ["firefox", "userchrome", "css", "marionette", "devtools"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 marionette = "0.7"
