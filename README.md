@@ -2,6 +2,8 @@
 
 A tool to develop userChrome CSS for Firefox using the Marionette protocol.
 
+<img width="128px" height="128px" src=".github/assets/mus-css.png" alt="mus-uc-devtools logo"></img>
+
 ## Features
 
 - Load CSS into Firefox chrome context via Marionette protocol
