@@ -61,6 +61,39 @@ CSS with chrome:// imports:
 ./mus-uc screenshot -s "#nav-bar" -o navbar.png
 ```
 
+### Execute JavaScript
+
+Run arbitrary JavaScript in Firefox chrome context:
+
+```bash
+# Execute from file
+./mus-uc exec -f script.js
+
+# Execute from stdin
+echo 'return { result: 1 + 1 };' | ./mus-uc exec
+
+# Pass arguments to the script
+./mus-uc exec -f script.js -a '["arg1", 42]'
+```
+
+Example scripts:
+
+```javascript
+// Get browser info
+const window = Services.wm.getMostRecentWindow("navigator:browser");
+return {
+    title: window.document.title,
+    url: window.location.href
+};
+```
+
+```javascript
+// Use arguments
+const name = arguments[0];
+const count = arguments[1];
+return { greeting: `Hello ${name}!`, count: count * 2 };
+```
+
 ## Requirements
 
 - Firefox with Marionette enabled (set `marionette.port` to 2828 in `about:config`)
