@@ -1,7 +1,7 @@
-# mus-css
-mus-css: A tool to develop userChromeCSS easily with marionette protocol
+# mus-uc-devtools
+mus-uc-devtools: A tool to develop userChromeCSS easily with marionette protocol
 
-<img width="128px" height="128px" src=".github/assets/mus-css.png" alt="mus-css logo"></img>
+<img width="128px" height="128px" src=".github/assets/mus-css.png" alt="mus-uc-devtools logo"></img>
 
 ## Features
 
@@ -25,7 +25,7 @@ This tool uses the Firefox Marionette protocol to communicate with Firefox and e
   - Chrome URIs (`chrome://`)
   - nsIStyleSheetService for userChrome CSS
 
-For more details on the chrome-privileged context implementation, see [GECKODRIVER_ANALYSIS.md](GECKODRIVER_ANALYSIS.md).
+For more details on the chrome-privileged context implementation, see [docs/chrome-context.md](docs/chrome-context.md).
 
 ## Usage
 
@@ -152,5 +152,11 @@ The project uses GitHub Actions to automatically test CSS loading on every push 
 ## References
 
 - [Marionette Protocol Documentation](https://firefox-source-docs.mozilla.org/testing/marionette/Protocol.html)
-- [Geckodriver Source Analysis](GECKODRIVER_ANALYSIS.md)
 - [XPCOM Documentation](https://developer.mozilla.org/en-US/docs/Mozilla/Tech/XPCOM)
+
+## Documentation
+
+- [Chrome Context](docs/chrome-context.md)
+- [Chrome Manifest Registration](docs/chrome-manifest.md)
+- [Screenshot Feature](docs/screenshot.md)
+- [Testing](docs/testing.md)
