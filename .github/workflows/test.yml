@@ -36,7 +36,9 @@ jobs:
       - name: Test with Rust CLI
         run: |
           # Create test CSS file
-          echo "#nav-bar { background: red !important; }" > /tmp/test.css
+          cat > /tmp/test.css << 'EOF'
+          #nav-bar { background: red !important; }
+          EOF
           
           # Start Firefox in background
           firefox --headless --marionette --no-remote --remote-allow-system-access --profile /tmp/firefox-test-profile &
@@ -53,7 +55,11 @@ jobs:
           done
           
           # Test loading CSS
-          timeout 10 ./target/release/chrome-css load -f /tmp/test.css || echo "CLI test completed"
+          if timeout 10 ./target/release/chrome-css load -f /tmp/test.css; then
+            echo "CLI test passed"
+          else
+            echo "CLI test exited with code $?"
+          fi
           
           # Cleanup
           kill $FIREFOX_PID 2>/dev/null || true
