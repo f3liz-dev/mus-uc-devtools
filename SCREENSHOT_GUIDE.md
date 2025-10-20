@@ -18,7 +18,7 @@ The screenshot functionality uses Firefox's chrome context to access the `drawWi
 Capture the entire browser window:
 
 ```bash
-./chrome-css screenshot -o screenshot.png
+./mus-uc screenshot -o screenshot.png
 ```
 
 ### Element-Specific Screenshot
@@ -27,16 +27,16 @@ Capture a specific element using CSS selectors:
 
 ```bash
 # Capture navigation bar
-./chrome-css screenshot -s "#nav-bar" -o navbar.png
+./mus-uc screenshot -s "#nav-bar" -o navbar.png
 
 # Capture any toolbar
-./chrome-css screenshot -s "toolbar" -o toolbar.png
+./mus-uc screenshot -s "toolbar" -o toolbar.png
 
 # Capture element by class
-./chrome-css screenshot -s ".my-custom-element" -o element.png
+./mus-uc screenshot -s ".my-custom-element" -o element.png
 
 # Capture complex selectors
-./chrome-css screenshot -s "#TabsToolbar > .toolbar-items" -o tabs.png
+./mus-uc screenshot -s "#TabsToolbar > .toolbar-items" -o tabs.png
 ```
 
 ## Command-Line Options
@@ -92,7 +92,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y firefox
       
-      - name: Build chrome-css
+      - name: Build mus-uc
         run: cargo build --release
       
       - name: Run Firefox with marionette
@@ -102,7 +102,7 @@ jobs:
       
       - name: Capture screenshots
         run: |
-          ./target/release/chrome-css screenshot -o before.png
+          ./target/release/mus-uc screenshot -o before.png
           
       - name: Upload screenshots
         uses: actions/upload-artifact@v2
@@ -121,7 +121,7 @@ screenshot-test:
     - cargo build --release
     - firefox --marionette --headless &
     - sleep 5
-    - ./target/release/chrome-css screenshot -o screenshot.png
+    - ./target/release/mus-uc screenshot -o screenshot.png
   artifacts:
     paths:
       - "*.png"
@@ -135,13 +135,13 @@ Capture screenshots before and after applying CSS changes:
 
 ```bash
 # Before changes
-./chrome-css screenshot -o before.png
+./mus-uc screenshot -o before.png
 
 # Apply CSS
-./chrome-css load -f my-changes.css
+./mus-uc load -f my-changes.css
 
 # After changes
-./chrome-css screenshot -o after.png
+./mus-uc screenshot -o after.png
 
 # Compare using image diff tools
 compare before.png after.png diff.png
@@ -163,7 +163,7 @@ elements=(
 for element in "${elements[@]}"; do
   selector="${element%%:*}"
   name="${element##*:}"
-  ./chrome-css screenshot -s "$selector" -o "docs/${name}.png"
+  ./mus-uc screenshot -s "$selector" -o "docs/${name}.png"
 done
 ```
 
@@ -178,8 +178,8 @@ set -e
 echo "Testing UI elements..."
 
 # These should succeed if elements exist
-./chrome-css screenshot -s "#nav-bar" -o /tmp/nav-test.png
-./chrome-css screenshot -s "toolbar" -o /tmp/toolbar-test.png
+./mus-uc screenshot -s "#nav-bar" -o /tmp/nav-test.png
+./mus-uc screenshot -s "toolbar" -o /tmp/toolbar-test.png
 
 echo "✓ All UI elements are present"
 ```
@@ -218,14 +218,14 @@ The screenshot functionality is available through the `ScreenshotManager` struct
 
 ```rust
 // Note: This is a CLI tool, not a library. The following is for reference only.
-// To use this functionality, run the chrome-css binary with the screenshot subcommand.
+// To use this functionality, run the mus-uc binary with the screenshot subcommand.
 
 // If integrating into your own project, you would need to:
 // 1. Add the marionette client dependency
 // 2. Implement similar screenshot functionality using the chrome context
 
-use firefox_chrome_css_cli::ScreenshotManager;
-use firefox_chrome_css_cli::marionette_client::{MarionetteConnection, MarionetteSettings};
+use mus_uc_devtools::ScreenshotManager;
+use mus_uc_devtools::marionette_client::{MarionetteConnection, MarionetteSettings};
 use std::path::Path;
 
 // Create connection
@@ -248,7 +248,7 @@ screenshot_manager.screenshot_to_file(
 )?;
 ```
 
-**Note**: This tool is primarily designed as a CLI application. For programmatic use, consider running the `chrome-css` binary as a subprocess or adapting the code for your specific needs.
+**Note**: This tool is primarily designed as a CLI application. For programmatic use, consider running the `mus-uc` binary as a subprocess or adapting the code for your specific needs.
 
 ## Performance Considerations
 

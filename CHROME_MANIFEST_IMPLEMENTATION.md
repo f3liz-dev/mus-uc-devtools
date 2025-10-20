@@ -31,7 +31,7 @@ Extended ChromeCSSManager to support manifest registration:
 Added new CLI subcommand:
 
 ```bash
-chrome-css register-manifest -m /path/to/chrome.manifest
+mus-uc register-manifest -m /path/to/chrome.manifest
 ```
 
 This command registers a chrome.manifest file before loading CSS files.
@@ -112,16 +112,16 @@ After registration, CSS files can use chrome:// URIs:
 
 ```bash
 # 1. Register the chrome.manifest
-./chrome-css register-manifest -m /absolute/path/to/chrome.manifest
+./mus-uc register-manifest -m /absolute/path/to/chrome.manifest
 
 # 2. Load CSS that uses chrome:// imports
-./chrome-css load -f main.css -i my-theme
+./mus-uc load -f main.css -i my-theme
 
 # 3. List loaded stylesheets
-./chrome-css list
+./mus-uc list
 
 # 4. Unload when done
-./chrome-css unload my-theme
+./mus-uc unload my-theme
 ```
 
 ## Technical Details

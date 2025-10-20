@@ -38,7 +38,7 @@ From the repository root:
 
 ```bash
 cargo build --release
-./target/release/chrome-css register-manifest -m examples/demo/chrome.manifest
+./target/release/mus-uc register-manifest -m examples/demo/chrome.manifest
 ```
 
 You should see output like:
@@ -49,13 +49,13 @@ chrome.manifest registered: /absolute/path/to/examples/demo/chrome.manifest
 ### 3. Load the main CSS file
 
 ```bash
-./target/release/chrome-css load -f examples/demo/main.css -i demo-theme
+./target/release/mus-uc load -f examples/demo/main.css -i demo-theme
 ```
 
 ### 4. Verify it's loaded
 
 ```bash
-./target/release/chrome-css list
+./target/release/mus-uc list
 ```
 
 You should see:
@@ -69,8 +69,8 @@ Loaded stylesheets:
 Edit any of the component CSS files (e.g., `components/buttons.css`) and reload:
 
 ```bash
-./target/release/chrome-css unload demo-theme
-./target/release/chrome-css load -f examples/demo/main.css -i demo-theme
+./target/release/mus-uc unload demo-theme
+./target/release/mus-uc load -f examples/demo/main.css -i demo-theme
 ```
 
 ## What's Happening

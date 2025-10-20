@@ -8,9 +8,9 @@ echo "=== Screenshot Testing Example ==="
 echo ""
 
 # Build the project
-echo "Building chrome-css..."
+echo "Building mus-uc..."
 cargo build --release
-CHROME_CSS="./target/release/chrome-css"
+MUS_UC="./target/release/mus-uc"
 
 echo ""
 echo "Make sure Firefox is running with marionette enabled on port 2828"
@@ -22,19 +22,19 @@ read -p "Press Enter when Firefox is ready..."
 
 # Take a full-screen screenshot
 echo "Taking full-screen screenshot..."
-$CHROME_CSS screenshot -o fullscreen.png
+$MUS_UC screenshot -o fullscreen.png
 echo "✓ Saved to fullscreen.png"
 
 # Take screenshots of specific UI elements
 echo "Taking navigation bar screenshot..."
-if $CHROME_CSS screenshot -s "#nav-bar" -o navbar.png 2>&1; then
+if $MUS_UC screenshot -s "#nav-bar" -o navbar.png 2>&1; then
     echo "✓ Saved to navbar.png"
 else
     echo "⚠ Navigation bar not found (may be hidden in headless mode)"
 fi
 
 echo "Taking toolbar screenshot..."
-if $CHROME_CSS screenshot -s "toolbar" -o toolbar.png 2>&1; then
+if $MUS_UC screenshot -s "toolbar" -o toolbar.png 2>&1; then
     echo "✓ Saved to toolbar.png"
 else
     echo "⚠ Toolbar not found"

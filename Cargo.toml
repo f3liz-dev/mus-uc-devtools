@@ -1,5 +1,5 @@
 [package]
-name = "firefox-chrome-css-cli"
+name = "mus-uc-devtools"
 version = "0.1.0"
 edition = "2021"
 
@@ -13,5 +13,5 @@ tempfile = "3.8"
 base64 = "0.21"
 
 [[bin]]
-name = "chrome-css"
+name = "mus-uc"
 path = "src/main.rs"
