@@ -1,6 +1,6 @@
 use crate::chrome_manifest::ChromeManifestRegistrar;
 use crate::marionette_client::{MarionetteConnection, MarionetteSettings};
-use notify::{Watcher, RecursiveMode, Event, EventKind};
+use notify::{Event, EventKind, RecursiveMode, Watcher};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::mpsc::channel;
@@ -166,11 +166,11 @@ impl ChromeCSSManager {
         id: Option<&str>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         use std::fs;
-        
+
         // Constants for watch behavior
         const POLL_INTERVAL_MS: u64 = 100; // Check for events every 100ms
         const FILE_WRITE_DELAY_MS: u64 = 50; // Wait for file write to complete
-        
+
         let path = Path::new(file_path);
         if !path.exists() {
             return Err(format!("File not found: {}", file_path).into());
@@ -206,24 +206,22 @@ impl ChromeCSSManager {
                     // (some editors save by deleting and recreating)
                     if matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_)) {
                         println!("File changed, reloading CSS...");
-                        
+
                         // Unload the current CSS
                         if let Err(e) = self.unload_css(&sheet_id) {
                             eprintln!("Error unloading CSS: {}", e);
                             continue;
                         }
-                        
+
                         // Small delay to ensure file write is complete
                         std::thread::sleep(Duration::from_millis(FILE_WRITE_DELAY_MS));
-                        
+
                         // Reload the CSS
                         match fs::read_to_string(path) {
-                            Ok(new_css) => {
-                                match self.load_css(&new_css, Some(&sheet_id)) {
-                                    Ok(_) => println!("CSS reloaded successfully"),
-                                    Err(e) => eprintln!("Error loading CSS: {}", e),
-                                }
-                            }
+                            Ok(new_css) => match self.load_css(&new_css, Some(&sheet_id)) {
+                                Ok(_) => println!("CSS reloaded successfully"),
+                                Err(e) => eprintln!("Error loading CSS: {}", e),
+                            },
                             Err(e) => eprintln!("Error reading file: {}", e),
                         }
                     }
