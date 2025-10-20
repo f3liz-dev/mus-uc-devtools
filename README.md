@@ -89,6 +89,29 @@ content mus-uc-themes ./themes/
 cargo build --release
 ```
 
+## Testing
+
+The project includes automated tests that run Firefox in headless mode using the marionette protocol:
+
+```bash
+# Install Node.js dependencies
+npm install
+
+# Run headless tests
+npm test
+```
+
+The test script:
+- Uses system Firefox or downloads it via `@puppeteer/browsers`
+- Starts Firefox in headless mode with marionette enabled
+- Connects via the marionette protocol
+- Loads test CSS into the chrome context
+- Verifies CSS is applied using JavaScript execution
+
+## Continuous Integration
+
+The project uses GitHub Actions to automatically test CSS loading on every push and pull request. See `.github/workflows/test.yml` for the workflow configuration.
+
 ## References
 
 - [Marionette Protocol Documentation](https://firefox-source-docs.mozilla.org/testing/marionette/Protocol.html)

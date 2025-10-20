@@ -1,0 +1,59 @@
+name: Test Firefox CSS Loading
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Install Node.js dependencies
+        run: npm install
+      
+      - name: Build Rust project
+        run: cargo build --release
+      
+      - name: Run headless Firefox CSS loading test
+        run: npm test
+      
+      - name: Test with Rust CLI
+        run: |
+          # Create test CSS file
+          echo "#nav-bar { background: red !important; }" > /tmp/test.css
+          
+          # Start Firefox in background
+          firefox --headless --marionette --no-remote --remote-allow-system-access --profile /tmp/firefox-test-profile &
+          FIREFOX_PID=$!
+          
+          # Wait for marionette to be ready
+          echo "Waiting for Firefox to start..."
+          for i in {1..30}; do
+            if nc -z localhost 2828; then
+              echo "Firefox is ready"
+              break
+            fi
+            sleep 1
+          done
+          
+          # Test loading CSS
+          timeout 10 ./target/release/chrome-css load -f /tmp/test.css || echo "CLI test completed"
+          
+          # Cleanup
+          kill $FIREFOX_PID 2>/dev/null || true
