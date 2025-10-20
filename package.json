@@ -1,12 +1,40 @@
 {
-  "name": "mus-uc-devtools-tests",
+  "name": "mus-uc-devtools",
   "version": "0.1.0",
-  "description": "Test utilities for mus-uc-devtools",
-  "private": true,
-  "scripts": {
-    "test": "node tests/headless-test.js"
+  "description": "A tool to develop userChrome CSS for Firefox using the Marionette protocol",
+  "main": "index.js",
+  "bin": {
+    "mus-uc": "./bin/mus-uc.wasm"
   },
-  "dependencies": {
+  "scripts": {
+    "test": "node tests/headless-test.js",
+    "build": "cargo build --release --target wasm32-wasip1",
+    "prepublishOnly": "npm run build && mkdir -p bin && cp target/wasm32-wasip1/release/mus-uc.wasm bin/"
+  },
+  "files": [
+    "bin/mus-uc.wasm",
+    "index.js",
+    "README.md"
+  ],
+  "keywords": [
+    "firefox",
+    "userchrome",
+    "css",
+    "marionette",
+    "devtools",
+    "wasm",
+    "wasi"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/f3liz-dev/mus-uc-devtools.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
     "@puppeteer/browsers": "^2.4.1"
   }
 }

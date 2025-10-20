@@ -97,12 +97,75 @@ return { greeting: `Hello ${name}!`, count: count * 2 };
 ## Requirements
 
 - Firefox with Marionette enabled (set `marionette.port` to 2828 in `about:config`)
-- Rust toolchain
+- For native builds: Rust toolchain
+- For WASI builds: Rust toolchain with `wasm32-wasip1` target
+- For running WASI binaries: A WASI-compatible runtime (e.g., [wasmtime](https://wasmtime.dev/), [wasmer](https://wasmer.io/), or Node.js 18+)
 
-## Building
+## Installation
+
+### From npm
+
+```bash
+npm install mus-uc-devtools
+```
+
+### From jsr.io
+
+```bash
+# Using Deno
+deno add @f3liz-dev/mus-uc-devtools
+
+# Using npm
+npx jsr add @f3liz-dev/mus-uc-devtools
+```
+
+### Building from source
+
+#### Native binary
 
 ```bash
 cargo build --release
+```
+
+#### WASI binary
+
+```bash
+# Install WASI target
+rustup target add wasm32-wasip1
+
+# Build using cargo alias
+cargo build-wasi
+
+# Or using npm script
+npm run build
+```
+
+The WASI binary will be available at `target/wasm32-wasip1/release/mus-uc.wasm`
+
+## Running
+
+### Native binary
+
+```bash
+./target/release/mus-uc --help
+```
+
+### WASI binary
+
+Using wasmtime:
+```bash
+wasmtime target/wasm32-wasip1/release/mus-uc.wasm -- --help
+```
+
+Using wasmer:
+```bash
+wasmer run target/wasm32-wasip1/release/mus-uc.wasm -- --help
+```
+
+Using the npm package:
+```javascript
+const { wasmPath } = require('mus-uc-devtools');
+// Use wasmPath with your WASI runtime
 ```
 
 ## Testing

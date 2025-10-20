@@ -1,0 +1,10 @@
+[build]
+# Default target for WASI builds
+# Can be overridden with --target flag
+
+[target.wasm32-wasip1]
+# WASI-specific configuration can go here
+
+[alias]
+# Convenient alias for building WASI target
+build-wasi = "build --release --target wasm32-wasip1"

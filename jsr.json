@@ -1,0 +1,13 @@
+{
+  "name": "@f3liz-dev/mus-uc-devtools",
+  "version": "0.1.0",
+  "exports": "./index.js",
+  "publish": {
+    "include": [
+      "bin/mus-uc.wasm",
+      "index.js",
+      "README.md",
+      "LICENSE"
+    ]
+  }
+}

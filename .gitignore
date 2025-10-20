@@ -30,3 +30,6 @@ package-lock.json
 # Screenshot outputs
 *.png
 !.github/assets/*.png
+
+# Build output for npm publishing (generated during prepublishOnly)
+bin/
