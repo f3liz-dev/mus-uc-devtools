@@ -27,10 +27,18 @@ echo "✓ Saved to fullscreen.png"
 
 # Take screenshots of specific UI elements
 echo "Taking navigation bar screenshot..."
-$CHROME_CSS screenshot -s "#nav-bar" -o navbar.png 2>/dev/null || echo "Navigation bar not found (may be hidden in headless mode)"
+if $CHROME_CSS screenshot -s "#nav-bar" -o navbar.png 2>&1; then
+    echo "✓ Saved to navbar.png"
+else
+    echo "⚠ Navigation bar not found (may be hidden in headless mode)"
+fi
 
 echo "Taking toolbar screenshot..."
-$CHROME_CSS screenshot -s "toolbar" -o toolbar.png 2>/dev/null || echo "Toolbar not found"
+if $CHROME_CSS screenshot -s "toolbar" -o toolbar.png 2>&1; then
+    echo "✓ Saved to toolbar.png"
+else
+    echo "⚠ Toolbar not found"
+fi
 
 echo ""
 echo "=== Screenshot Testing Complete ==="

@@ -214,9 +214,19 @@ firefox --marionette --headless --remote-allow-system-access
 
 ### Rust API
 
+The screenshot functionality is available through the `ScreenshotManager` struct. For library usage, you would access it through the crate's public API:
+
 ```rust
-use mus_uc_devtools::ScreenshotManager;
-use mus_uc_devtools::marionette_client::{MarionetteConnection, MarionetteSettings};
+// Note: This is a CLI tool, not a library. The following is for reference only.
+// To use this functionality, run the chrome-css binary with the screenshot subcommand.
+
+// If integrating into your own project, you would need to:
+// 1. Add the marionette client dependency
+// 2. Implement similar screenshot functionality using the chrome context
+
+use firefox_chrome_css_cli::ScreenshotManager;
+use firefox_chrome_css_cli::marionette_client::{MarionetteConnection, MarionetteSettings};
+use std::path::Path;
 
 // Create connection
 let settings = MarionetteSettings::new();
@@ -237,6 +247,8 @@ screenshot_manager.screenshot_to_file(
     Some("#nav-bar")
 )?;
 ```
+
+**Note**: This tool is primarily designed as a CLI application. For programmatic use, consider running the `chrome-css` binary as a subprocess or adapting the code for your specific needs.
 
 ## Performance Considerations
 
