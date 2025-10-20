@@ -58,7 +58,7 @@ jobs:
           done
           
           # Test loading CSS
-          if timeout 10 ./target/release/chrome-css load -f /tmp/test.css; then
+          if timeout 10 ./target/release/mus-uc load -f /tmp/test.css; then
             echo "CLI test passed"
           else
             echo "CLI test exited with code $?"

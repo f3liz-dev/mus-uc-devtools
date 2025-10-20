@@ -35,10 +35,10 @@ The recommended approach is to register a `chrome.manifest` file instead of bund
 
 ```bash
 # First, register your chrome.manifest
-./chrome-css register-manifest -m /path/to/your/chrome.manifest
+./mus-uc register-manifest -m /path/to/your/chrome.manifest
 
 # Then load CSS that can use chrome:// URIs
-./chrome-css load -f path/to/style.css
+./mus-uc load -f path/to/style.css
 ```
 
 **chrome.manifest example:**
@@ -65,19 +65,19 @@ content mus-uc-themes ./themes/
 
 ```bash
 # Load CSS from a file
-./chrome-css load -f path/to/style.css
+./mus-uc load -f path/to/style.css
 
 # Load CSS with custom ID
-./chrome-css load -f path/to/style.css -i my-custom-style
+./mus-uc load -f path/to/style.css -i my-custom-style
 
 # Unload CSS by ID
-./chrome-css unload my-custom-style
+./mus-uc unload my-custom-style
 
 # List loaded stylesheets
-./chrome-css list
+./mus-uc list
 
 # Clear all loaded stylesheets
-./chrome-css clear
+./mus-uc clear
 ```
 
 ### Screenshot Capture
@@ -86,16 +86,16 @@ The tool supports capturing screenshots of the Firefox browser window, making it
 
 ```bash
 # Take a full-screen screenshot
-./chrome-css screenshot -o screenshot.png
+./mus-uc screenshot -o screenshot.png
 
 # Capture a specific element using CSS selector
-./chrome-css screenshot -s "#nav-bar" -o navbar.png
+./mus-uc screenshot -s "#nav-bar" -o navbar.png
 
 # Capture toolbar
-./chrome-css screenshot -s "toolbar" -o toolbar.png
+./mus-uc screenshot -s "toolbar" -o toolbar.png
 
 # Capture any element with a class
-./chrome-css screenshot -s ".my-element" -o element.png
+./mus-uc screenshot -s ".my-element" -o element.png
 ```
 
 The screenshot feature uses the Firefox chrome context to access the `drawWindow` API, enabling high-quality captures of browser UI elements for:

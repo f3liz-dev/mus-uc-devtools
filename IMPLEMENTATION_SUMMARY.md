@@ -75,7 +75,7 @@ firefox --marionette
 
 # In another terminal
 cargo build --release
-./target/release/chrome-css load -f path/to/style.css
+./target/release/mus-uc load -f path/to/style.css
 ```
 
 ## References

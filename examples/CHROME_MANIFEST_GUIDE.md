@@ -26,7 +26,7 @@ content mus-uc-themes ./themes/
 ### 2. Register the Manifest
 
 ```bash
-chrome-css register-manifest -m /absolute/path/to/chrome.manifest
+mus-uc register-manifest -m /absolute/path/to/chrome.manifest
 ```
 
 ### 3. Use chrome:// URIs in CSS
@@ -47,7 +47,7 @@ chrome-css register-manifest -m /absolute/path/to/chrome.manifest
 ### 4. Load the Main CSS
 
 ```bash
-chrome-css load -f main.css -i my-custom-theme
+mus-uc load -f main.css -i my-custom-theme
 ```
 
 ## chrome.manifest Format
@@ -108,14 +108,14 @@ content mus-uc-themes ./themes/
 **Register and load:**
 ```bash
 # Register the manifest (one-time setup)
-chrome-css register-manifest -m /absolute/path/to/my-firefox-customization/chrome.manifest
+mus-uc register-manifest -m /absolute/path/to/my-firefox-customization/chrome.manifest
 
 # Load the main CSS
-chrome-css load -f main.css -i my-theme
+mus-uc load -f main.css -i my-theme
 
 # Later, reload if you make changes
-chrome-css unload my-theme
-chrome-css load -f main.css -i my-theme
+mus-uc unload my-theme
+mus-uc load -f main.css -i my-theme
 ```
 
 ## Benefits Over Bundling

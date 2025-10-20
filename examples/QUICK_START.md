@@ -31,7 +31,7 @@ cd examples/demo
 ### Step 2: Register the chrome.manifest
 
 ```bash
-../../target/release/chrome-css register-manifest -m $(pwd)/chrome.manifest
+../../target/release/mus-uc register-manifest -m $(pwd)/chrome.manifest
 ```
 
 Expected output:
@@ -42,7 +42,7 @@ chrome.manifest registered: /absolute/path/to/examples/demo/chrome.manifest
 ### Step 3: Load the main CSS file
 
 ```bash
-../../target/release/chrome-css load -f main.css -i demo-theme
+../../target/release/mus-uc load -f main.css -i demo-theme
 ```
 
 Expected output:
@@ -53,7 +53,7 @@ CSS loaded with ID: demo-theme
 ### Step 4: Verify it's loaded
 
 ```bash
-../../target/release/chrome-css list
+../../target/release/mus-uc list
 ```
 
 Expected output:
@@ -73,8 +73,8 @@ The CSS should now be applied to Firefox:
 Edit any of the CSS files (e.g., `themes/dark-theme.css`), then:
 
 ```bash
-../../target/release/chrome-css unload demo-theme
-../../target/release/chrome-css load -f main.css -i demo-theme
+../../target/release/mus-uc unload demo-theme
+../../target/release/mus-uc load -f main.css -i demo-theme
 ```
 
 The changes should be immediately visible in Firefox!
@@ -118,8 +118,8 @@ The changes should be immediately visible in Firefox!
 
 4. Register and load:
    ```bash
-   chrome-css register-manifest -m $(pwd)/chrome.manifest
-   chrome-css load -f style.css -i my-theme
+   mus-uc register-manifest -m $(pwd)/chrome.manifest
+   mus-uc load -f style.css -i my-theme
    ```
 
 ## Troubleshooting
@@ -141,7 +141,7 @@ The changes should be immediately visible in Firefox!
 **Changes not visible:**
 - Ensure you unloaded the old version before loading the new one
 - Check that you're editing the correct files
-- Try clearing all and reloading: `chrome-css clear && chrome-css load -f main.css`
+- Try clearing all and reloading: `mus-uc clear && mus-uc load -f main.css`
 
 ## Advanced Usage
 
