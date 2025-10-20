@@ -31,7 +31,7 @@ For more details on the chrome-privileged context implementation, see [GECKODRIV
 
 ### Registering chrome.manifest (Recommended)
 
-The recommended approach is to register a `chrome.manifest` file instead of bundling CSS. This allows you to use `@import` statements with `chrome://` URIs in your CSS files.
+The recommended approach is to register a `chrome.manifest` file to enable modular CSS development with `@import` statements using `chrome://` URIs. This allows you to organize CSS into multiple files without needing a build step during development.
 
 ```bash
 # First, register your chrome.manifest
@@ -59,6 +59,18 @@ content mus-uc-themes ./themes/
 
 /* Your custom styles */
 #nav-bar { background: red !important; }
+```
+
+### External Bundling (Optional)
+
+This tool loads CSS files directly without bundling. If you prefer to bundle your CSS externally (for production or optimization), you can use any CSS bundler of your choice (PostCSS, Webpack, Parcel, etc.) and then load the bundled output:
+
+```bash
+# Bundle CSS using your preferred tool
+npx postcss main.css -o bundled.css
+
+# Load the bundled CSS
+./mus-uc load -f bundled.css -i my-bundled-theme
 ```
 
 ### Basic CSS Loading

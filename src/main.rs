@@ -1,4 +1,3 @@
-mod bundler;
 mod chrome_css_manager;
 mod chrome_manifest;
 mod cli;
