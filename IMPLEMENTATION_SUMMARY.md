@@ -54,7 +54,6 @@ Updated ChromeCSSManager to use chrome context:
 - `src/chrome_css_manager.rs` - Added chrome context support
 - `src/main.rs` - Created entry point
 - `src/cli.rs` - Fixed imports
-- `src/bundler.rs` - Fixed imports and warnings
 - `README.md` - Enhanced documentation
 
 ### Created
