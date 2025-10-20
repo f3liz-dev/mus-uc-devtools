@@ -1,0 +1,12 @@
+{
+  "name": "mus-uc-devtools-tests",
+  "version": "0.1.0",
+  "description": "Test utilities for mus-uc-devtools",
+  "private": true,
+  "scripts": {
+    "test": "node tests/headless-test.js"
+  },
+  "dependencies": {
+    "@puppeteer/browsers": "^2.4.1"
+  }
+}
