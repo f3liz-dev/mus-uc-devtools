@@ -30,6 +30,27 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
                 ),
         )
         .subcommand(
+            SubCommand::with_name("watch")
+                .about("Watch CSS file for changes and auto-reload")
+                .arg(
+                    Arg::with_name("file")
+                        .short("f")
+                        .long("file")
+                        .value_name("FILE")
+                        .help("CSS file to watch")
+                        .required(true)
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("id")
+                        .short("i")
+                        .long("id")
+                        .value_name("ID")
+                        .help("Custom ID for the stylesheet")
+                        .takes_value(true),
+                ),
+        )
+        .subcommand(
             SubCommand::with_name("register-manifest")
                 .about("Register chrome.manifest to enable chrome:// URIs in CSS imports")
                 .arg(
@@ -109,6 +130,14 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
             let id = sub_matches.value_of("id");
             let sheet_id = manager.load_css(&css_content, id)?;
             println!("CSS loaded with ID: {}", sheet_id);
+        }
+
+        ("watch", Some(sub_matches)) => {
+            let file_path = sub_matches.value_of("file").unwrap();
+            let id = sub_matches.value_of("id");
+            
+            println!("Watching {} for changes (Ctrl+C to stop)...", file_path);
+            manager.watch_and_reload(file_path, id)?;
         }
 
         ("unload", Some(sub_matches)) => {

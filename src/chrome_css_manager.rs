@@ -1,7 +1,10 @@
 use crate::chrome_manifest::ChromeManifestRegistrar;
 use crate::marionette_client::{MarionetteConnection, MarionetteSettings};
+use notify::{Watcher, RecursiveMode, Event, EventKind};
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::mpsc::channel;
+use std::time::Duration;
 
 pub struct ChromeCSSManager {
     connection: MarionetteConnection,
@@ -154,5 +157,78 @@ impl ChromeCSSManager {
 
     pub fn get_registered_manifest(&self) -> Option<&str> {
         self.manifest_registrar.get_registered_path()
+    }
+
+    /// Watch a CSS file for changes and automatically reload it
+    pub fn watch_and_reload(
+        &mut self,
+        file_path: &str,
+        id: Option<&str>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        use std::fs;
+        
+        let path = Path::new(file_path);
+        if !path.exists() {
+            return Err(format!("File not found: {}", file_path).into());
+        }
+
+        // Determine the ID to use for the stylesheet
+        let sheet_id = id.unwrap_or("watched-sheet").to_string();
+
+        // Load the initial CSS
+        let css_content = fs::read_to_string(path)?;
+        self.load_css(&css_content, Some(&sheet_id))?;
+        println!("Initial CSS loaded with ID: {}", sheet_id);
+
+        // Create a channel for file system events
+        let (tx, rx) = channel();
+
+        // Create a watcher
+        let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
+            if let Ok(event) = res {
+                tx.send(event).ok();
+            }
+        })?;
+
+        // Watch the file
+        watcher.watch(path, RecursiveMode::NonRecursive)?;
+
+        // Watch loop
+        loop {
+            match rx.recv_timeout(Duration::from_millis(100)) {
+                Ok(event) => {
+                    // Check if the event is a modify event
+                    if matches!(event.kind, EventKind::Modify(_)) {
+                        println!("File changed, reloading CSS...");
+                        
+                        // Unload the current CSS
+                        if let Err(e) = self.unload_css(&sheet_id) {
+                            eprintln!("Error unloading CSS: {}", e);
+                            continue;
+                        }
+                        
+                        // Small delay to ensure file write is complete
+                        std::thread::sleep(Duration::from_millis(50));
+                        
+                        // Reload the CSS
+                        match fs::read_to_string(path) {
+                            Ok(new_css) => {
+                                match self.load_css(&new_css, Some(&sheet_id)) {
+                                    Ok(_) => println!("CSS reloaded successfully"),
+                                    Err(e) => eprintln!("Error loading CSS: {}", e),
+                                }
+                            }
+                            Err(e) => eprintln!("Error reading file: {}", e),
+                        }
+                    }
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    // No events, continue waiting
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    return Err("File watcher disconnected".into());
+                }
+            }
+        }
     }
 }
