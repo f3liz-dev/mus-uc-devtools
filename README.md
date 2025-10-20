@@ -31,7 +31,7 @@ For more details on the chrome-privileged context implementation, see [GECKODRIV
 
 ### Registering chrome.manifest (Recommended)
 
-The recommended approach is to register a `chrome.manifest` file to enable modular CSS development with `@import` statements using `chrome://` URIs. This eliminates the need for bundling during development.
+The recommended approach is to register a `chrome.manifest` file to enable modular CSS development with `@import` statements using `chrome://` URIs. This allows you to organize CSS into multiple files without needing a build step during development.
 
 ```bash
 # First, register your chrome.manifest
