@@ -218,13 +218,18 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
                 buffer
             };
 
+            // Validate that we have some JavaScript to execute
+            if js_content.trim().is_empty() {
+                return Err("No JavaScript code provided. Use -f to specify a file or provide code via stdin.".into());
+            }
+
             // Parse arguments if provided
             let args = if let Some(args_str) = sub_matches.value_of("args") {
                 let parsed: serde_json::Value = serde_json::from_str(args_str)?;
                 if let serde_json::Value::Array(arr) = parsed {
                     Some(arr)
                 } else {
-                    return Err("Arguments must be a JSON array".into());
+                    return Err("Arguments must be a JSON array (e.g., '[\"arg1\", 42]')".into());
                 }
             } else {
                 None
