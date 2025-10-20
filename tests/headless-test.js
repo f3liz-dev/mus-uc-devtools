@@ -466,6 +466,76 @@ async function testCSSLoading(client) {
 }
 
 /**
+ * Test JavaScript execution functionality
+ */
+async function testJavaScriptExecution(client) {
+    console.log('\n=== Testing JavaScript Execution ===');
+    
+    // Switch to chrome context
+    console.log('Switching to chrome context...');
+    await client.setContext('chrome');
+    
+    // Test 1: Simple script execution
+    console.log('Test 1: Simple script execution...');
+    const simpleScript = `
+        return { message: "Hello from Firefox!", timestamp: Date.now() };
+    `;
+    
+    const simpleResult = await client.executeScript(simpleScript, []);
+    const simpleData = simpleResult.value || simpleResult;
+    
+    if (!simpleData.message || !simpleData.timestamp) {
+        throw new Error('Simple script did not return expected result');
+    }
+    
+    console.log('✓ Simple script executed successfully:', simpleData.message);
+    
+    // Test 2: Script with arguments
+    console.log('Test 2: Script with arguments...');
+    const argsScript = `
+        const name = arguments[0];
+        const count = arguments[1];
+        return { greeting: "Hello " + name + "!", doubled: count * 2 };
+    `;
+    
+    const argsResult = await client.executeScript(argsScript, ["Firefox", 21]);
+    const argsData = argsResult.value || argsResult;
+    
+    if (argsData.greeting !== "Hello Firefox!" || argsData.doubled !== 42) {
+        throw new Error('Script with arguments did not return expected result');
+    }
+    
+    console.log('✓ Script with arguments executed successfully:', argsData.greeting);
+    
+    // Test 3: Chrome context API access
+    console.log('Test 3: Chrome context API access...');
+    const chromeScript = `
+        const window = Services.wm.getMostRecentWindow("navigator:browser");
+        const doc = window.document;
+        
+        return {
+            hasWindow: !!window,
+            hasDocument: !!doc,
+            userAgent: window.navigator.userAgent
+        };
+    `;
+    
+    const chromeResult = await client.executeScript(chromeScript, []);
+    const chromeData = chromeResult.value || chromeResult;
+    
+    if (!chromeData.hasWindow || !chromeData.hasDocument || !chromeData.userAgent) {
+        throw new Error('Chrome context APIs not accessible');
+    }
+    
+    console.log('✓ Chrome context APIs accessible');
+    console.log('  User Agent:', chromeData.userAgent.substring(0, 50) + '...');
+    
+    console.log('✓ All JavaScript execution tests passed!');
+    
+    return true;
+}
+
+/**
  * Test screenshot functionality
  */
 async function testScreenshot(client) {
@@ -582,6 +652,9 @@ async function runTest() {
         
         // Run CSS loading test
         await testCSSLoading(client);
+        
+        // Run JavaScript execution test
+        await testJavaScriptExecution(client);
         
         // Run screenshot test
         await testScreenshot(client);

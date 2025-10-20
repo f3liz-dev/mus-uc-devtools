@@ -96,6 +96,26 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
                         .takes_value(true),
                 ),
         )
+        .subcommand(
+            SubCommand::with_name("exec")
+                .about("Execute JavaScript in Firefox chrome context")
+                .arg(
+                    Arg::with_name("file")
+                        .short("f")
+                        .long("file")
+                        .value_name("FILE")
+                        .help("JavaScript file to execute")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("args")
+                        .short("a")
+                        .long("args")
+                        .value_name("JSON")
+                        .help("Arguments to pass to the script as JSON array")
+                        .takes_value(true),
+                ),
+        )
         .get_matches();
 
     let mut manager = ChromeCSSManager::new()?;
@@ -186,6 +206,42 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 println!("Full-screen screenshot saved to: {}", output_path);
             }
+        }
+
+        ("exec", Some(sub_matches)) => {
+            let js_content = if let Some(file_path) = sub_matches.value_of("file") {
+                fs::read_to_string(file_path)?
+            } else {
+                println!("Enter JavaScript code (Ctrl+D to finish):");
+                let mut buffer = String::new();
+                io::stdin().read_to_string(&mut buffer)?;
+                buffer
+            };
+
+            // Parse arguments if provided
+            let args = if let Some(args_str) = sub_matches.value_of("args") {
+                let parsed: serde_json::Value = serde_json::from_str(args_str)?;
+                if let serde_json::Value::Array(arr) = parsed {
+                    Some(arr)
+                } else {
+                    return Err("Arguments must be a JSON array".into());
+                }
+            } else {
+                None
+            };
+
+            // Create a new connection for script execution
+            let settings = MarionetteSettings::new();
+            let mut connection = MarionetteConnection::connect(&settings)?;
+            
+            // Switch to chrome context
+            connection.set_context("chrome")?;
+            
+            // Execute the script
+            let result = connection.execute_script(&js_content, args)?;
+            
+            // Print the result
+            println!("{}", serde_json::to_string_pretty(&result)?);
         }
 
         _ => {
