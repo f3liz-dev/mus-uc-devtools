@@ -10,6 +10,7 @@ serde_json = "1.0"
 clap = "2.34"
 tokio = { version = "1.0", features = ["full"] }
 tempfile = "3.8"
+base64 = "0.21"
 
 [[bin]]
 name = "chrome-css"

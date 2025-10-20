@@ -1,4 +1,5 @@
-use crate::ChromeCSSManager;
+use crate::{ChromeCSSManager, ScreenshotManager};
+use crate::marionette_client::{MarionetteConnection, MarionetteSettings};
 use clap::{App, Arg, SubCommand};
 use std::fs;
 use std::io::{self, Read, Write};
@@ -54,6 +55,26 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
         .subcommand(SubCommand::with_name("clear").about("Clear all loaded stylesheets"))
         .subcommand(SubCommand::with_name("list").about("List all loaded stylesheets"))
         .subcommand(SubCommand::with_name("interactive").about("Start interactive mode"))
+        .subcommand(
+            SubCommand::with_name("screenshot")
+                .about("Take a screenshot of the browser window")
+                .arg(
+                    Arg::with_name("output")
+                        .short("o")
+                        .long("output")
+                        .value_name("FILE")
+                        .help("Output file path (default: screenshot.png)")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("selector")
+                        .short("s")
+                        .long("selector")
+                        .value_name("CSS_SELECTOR")
+                        .help("CSS selector to capture a specific element (default: full screen)")
+                        .takes_value(true),
+                ),
+        )
         .get_matches();
 
     let mut manager = ChromeCSSManager::new()?;
@@ -118,6 +139,24 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
 
         ("interactive", Some(_)) => {
             run_interactive_mode(&mut manager)?;
+        }
+
+        ("screenshot", Some(sub_matches)) => {
+            let output_path = sub_matches.value_of("output").unwrap_or("screenshot.png");
+            let selector = sub_matches.value_of("selector");
+
+            // Create a new connection for screenshot (reuses same marionette settings)
+            let settings = MarionetteSettings::new();
+            let connection = MarionetteConnection::connect(&settings)?;
+            let mut screenshot_manager = ScreenshotManager::new(connection)?;
+
+            screenshot_manager.screenshot_to_file(Path::new(output_path), selector)?;
+            
+            if let Some(sel) = selector {
+                println!("Screenshot of element '{}' saved to: {}", sel, output_path);
+            } else {
+                println!("Full-screen screenshot saved to: {}", output_path);
+            }
         }
 
         _ => {
