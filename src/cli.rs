@@ -6,8 +6,8 @@ use std::io::{self, Read, Write};
 use std::path::Path;
 
 pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
-    let matches = App::new("Firefox Chrome CSS CLI")
-        .version("1.0")
+    let matches = App::new("mus-uc-devtools")
+        .version("1.0.0")
         .about("Loads userChrome CSS into Firefox chrome context via Marionette")
         .subcommand(
             SubCommand::with_name("load")
