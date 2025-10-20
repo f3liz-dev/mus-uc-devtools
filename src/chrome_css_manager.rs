@@ -167,6 +167,10 @@ impl ChromeCSSManager {
     ) -> Result<(), Box<dyn std::error::Error>> {
         use std::fs;
         
+        // Constants for watch behavior
+        const POLL_INTERVAL_MS: u64 = 100; // Check for events every 100ms
+        const FILE_WRITE_DELAY_MS: u64 = 50; // Wait for file write to complete
+        
         let path = Path::new(file_path);
         if !path.exists() {
             return Err(format!("File not found: {}", file_path).into());
@@ -184,6 +188,7 @@ impl ChromeCSSManager {
         let (tx, rx) = channel();
 
         // Create a watcher
+        // The watcher must remain in scope for the duration of the watch loop
         let mut watcher = notify::recommended_watcher(move |res: Result<Event, notify::Error>| {
             if let Ok(event) = res {
                 tx.send(event).ok();
@@ -193,12 +198,13 @@ impl ChromeCSSManager {
         // Watch the file
         watcher.watch(path, RecursiveMode::NonRecursive)?;
 
-        // Watch loop
+        // Watch loop - runs until Ctrl+C or error
         loop {
-            match rx.recv_timeout(Duration::from_millis(100)) {
+            match rx.recv_timeout(Duration::from_millis(POLL_INTERVAL_MS)) {
                 Ok(event) => {
-                    // Check if the event is a modify event
-                    if matches!(event.kind, EventKind::Modify(_)) {
+                    // Check if the event is a modify or create event
+                    // (some editors save by deleting and recreating)
+                    if matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_)) {
                         println!("File changed, reloading CSS...");
                         
                         // Unload the current CSS
@@ -208,7 +214,7 @@ impl ChromeCSSManager {
                         }
                         
                         // Small delay to ensure file write is complete
-                        std::thread::sleep(Duration::from_millis(50));
+                        std::thread::sleep(Duration::from_millis(FILE_WRITE_DELAY_MS));
                         
                         // Reload the CSS
                         match fs::read_to_string(path) {
