@@ -466,6 +466,96 @@ async function testCSSLoading(client) {
 }
 
 /**
+ * Test screenshot functionality
+ */
+async function testScreenshot(client) {
+    console.log('\n=== Testing Screenshot Functionality ===');
+    
+    // Switch to chrome context
+    console.log('Switching to chrome context...');
+    await client.setContext('chrome');
+    
+    // Test full-screen screenshot
+    console.log('Taking full-screen screenshot...');
+    const fullScreenScript = `
+        let canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+        let window = Services.wm.getMostRecentWindow("navigator:browser");
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+
+        canvas.width = width;
+        canvas.height = height;
+
+        let ctx = canvas.getContext("2d");
+        ctx.drawWindow(window, 0, 0, width, height, "rgb(255,255,255)");
+
+        // Convert to data URL
+        let dataURL = canvas.toDataURL("image/png");
+        return { dataURL, width, height };
+    `;
+    
+    const result = await client.executeScript(fullScreenScript, []);
+    const screenshotData = result.value || result;
+    
+    console.log(`Screenshot taken: ${screenshotData.width}x${screenshotData.height}`);
+    
+    // Verify the data URL is valid
+    if (!screenshotData.dataURL || !screenshotData.dataURL.startsWith('data:image/png;base64,')) {
+        throw new Error('Invalid screenshot data URL format');
+    }
+    
+    console.log('✓ Full-screen screenshot captured successfully!');
+    
+    // Test element screenshot
+    console.log('Testing element screenshot with CSS selector...');
+    const elementScreenshotScript = `
+        let window = Services.wm.getMostRecentWindow("navigator:browser");
+        let doc = window.document;
+        
+        // Try to find the navigation bar
+        let element = doc.querySelector("#nav-bar");
+        
+        if (!element) {
+            // If nav-bar doesn't exist, try other common elements
+            element = doc.querySelector("toolbar") || doc.querySelector("*");
+        }
+        
+        if (!element) {
+            throw new Error("No element found for screenshot");
+        }
+        
+        // Get element position and dimensions
+        let rect = element.getBoundingClientRect();
+        
+        // Create canvas
+        let canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+
+        let ctx = canvas.getContext("2d");
+        ctx.drawWindow(window, rect.left, rect.top, rect.width, rect.height, "rgb(255,255,255)");
+
+        // Convert to data URL
+        let dataURL = canvas.toDataURL("image/png");
+        return { dataURL, width: rect.width, height: rect.height };
+    `;
+    
+    const elementResult = await client.executeScript(elementScreenshotScript, []);
+    const elementData = elementResult.value || elementResult;
+    
+    console.log(`Element screenshot taken: ${elementData.width}x${elementData.height}`);
+    
+    // Verify the data URL is valid
+    if (!elementData.dataURL || !elementData.dataURL.startsWith('data:image/png;base64,')) {
+        throw new Error('Invalid element screenshot data URL format');
+    }
+    
+    console.log('✓ Element screenshot captured successfully!');
+    
+    return true;
+}
+
+/**
  * Main test function
  */
 async function runTest() {
@@ -492,6 +582,9 @@ async function runTest() {
         
         // Run CSS loading test
         await testCSSLoading(client);
+        
+        // Run screenshot test
+        await testScreenshot(client);
         
         console.log('\n✅ All tests passed!');
         return true;

@@ -26,3 +26,7 @@ package-lock.json
 
 # Firefox cache for tests
 .firefox-cache/
+
+# Screenshot outputs
+*.png
+!.github/assets/*.png

@@ -9,6 +9,8 @@ mus-css: A tool to develop userChromeCSS easily with marionette protocol
 - Chrome-privileged context execution for direct browser UI manipulation
 - Built with marionette@0.7.0 protocol definitions
 - Custom Marionette client implementation based on geckodriver analysis
+- Screenshot capture for browser window and specific elements using CSS selectors
+- CI/CD friendly screenshot functionality for visual regression testing
 
 ## Implementation Details
 
@@ -77,6 +79,29 @@ content mus-uc-themes ./themes/
 # Clear all loaded stylesheets
 ./chrome-css clear
 ```
+
+### Screenshot Capture
+
+The tool supports capturing screenshots of the Firefox browser window, making it CI/CD friendly for visual regression testing and design documentation.
+
+```bash
+# Take a full-screen screenshot
+./chrome-css screenshot -o screenshot.png
+
+# Capture a specific element using CSS selector
+./chrome-css screenshot -s "#nav-bar" -o navbar.png
+
+# Capture toolbar
+./chrome-css screenshot -s "toolbar" -o toolbar.png
+
+# Capture any element with a class
+./chrome-css screenshot -s ".my-element" -o element.png
+```
+
+The screenshot feature uses the Firefox chrome context to access the `drawWindow` API, enabling high-quality captures of browser UI elements for:
+- Visual regression testing in CI/CD pipelines
+- Documentation of browser UI customizations
+- Design verification of userChrome CSS changes
 
 ## Requirements
 
