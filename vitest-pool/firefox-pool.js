@@ -1,6 +1,7 @@
 /**
- * Vitest Pool for Firefox Chrome Context
- * Runs tests inside Firefox via Marionette protocol with module proxy
+ * Vitest Pool for Firefox Chrome Context  
+ * Runs tests inside Firefox via Marionette protocol with native imports
+ * Uses HTTP module server with proper Firefox integration
  */
 const net = require('net');
 const http = require('http');
@@ -10,7 +11,13 @@ const path = require('path');
 const { startTests } = require('@vitest/runner');
 
 const MARIONETTE_PORT = 2828;
-const MODULE_SERVER_PORT = 8765; // Port for serving modules to Firefox
+const MODULE_SERVER_PORT = 8765;
+
+/**
+ * Module Server - serves modules via HTTP for Firefox to import
+ * Note: This works because we use Components.utils.import() in Firefox chrome context
+ * which has permissions to load from HTTP in privileged context
+ */
 
 /**
  * HTTP server that serves modules to Firefox
@@ -468,18 +475,25 @@ class FirefoxTestRunner {
   }
 
   /**
-   * Create a test runner script that uses dynamic import
+   * Create a test runner script that uses ChromeUtils.importESModule
+   * This is the proper way to load ES modules in Firefox chrome context
    */
   getTestRunnerScript(testModuleUrl) {
     return `
-// Test runner that uses native ES6 imports
+// Test runner using ChromeUtils.importESModule (Firefox chrome context API)
 (async function() {
   try {
-    // Import the test module
-    const testModule = await import('${testModuleUrl}');
+    // Import vitest API using ChromeUtils (works in chrome context)
+    const vitestUrl = '${this.moduleServer.getModuleUrl('/vitest')}';
+    const vitest = ChromeUtils.importESModule ? 
+      ChromeUtils.importESModule(vitestUrl) :
+      await import(vitestUrl);
     
-    // Import vitest API to get access to __vitestState and __vitestResults
-    const vitest = await import('${this.moduleServer.getModuleUrl('/vitest')}');
+    // Import the test module
+    const testUrl = '${testModuleUrl}';
+    const testModule = ChromeUtils.importESModule ?
+      ChromeUtils.importESModule(testUrl) :
+      await import(testUrl);
     
     // Runner function to execute all collected tests
     const runTest = async (test, suitePath = []) => {
