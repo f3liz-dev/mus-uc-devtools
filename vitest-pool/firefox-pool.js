@@ -1,15 +1,352 @@
 /**
  * Vitest Pool for Firefox Chrome Context
- * Runs tests inside Firefox via Marionette protocol
+ * Runs tests inside Firefox via Marionette protocol with module proxy
  */
 const net = require('net');
+const http = require('http');
 const { normalize } = require('pathe');
 const fs = require('fs');
 const path = require('path');
-const esbuild = require('esbuild');
 const { startTests } = require('@vitest/runner');
 
 const MARIONETTE_PORT = 2828;
+const MODULE_SERVER_PORT = 8765; // Port for serving modules to Firefox
+
+/**
+ * HTTP server that serves modules to Firefox
+ * This allows Firefox to use native ES6 imports
+ */
+class ModuleServer {
+  constructor(baseDir) {
+    this.baseDir = baseDir;
+    this.server = null;
+    this.port = MODULE_SERVER_PORT;
+    this.moduleCache = new Map();
+  }
+
+  /**
+   * Create Vitest API module that Firefox can import
+   */
+  getVitestModule() {
+    return `
+// Vitest API implementation for Firefox chrome context
+export const __vitestResults = {
+  passed: [],
+  failed: [],
+  errors: []
+};
+
+export const __vitestState = {
+  currentSuite: null,
+  suites: [],
+  tests: []
+};
+
+export const describe = (name, fn) => {
+  const parentSuite = __vitestState.currentSuite;
+  const suite = { name, tests: [], suites: [], parent: parentSuite };
+  
+  if (parentSuite) {
+    parentSuite.suites.push(suite);
+  } else {
+    __vitestState.suites.push(suite);
+  }
+  
+  __vitestState.currentSuite = suite;
+  try {
+    fn();
+  } catch (error) {
+    __vitestResults.errors.push({ suite: name, error: error.toString(), stack: error.stack });
+  }
+  __vitestState.currentSuite = parentSuite;
+};
+
+export const it = (name, fn) => {
+  const test = { name, fn };
+  if (__vitestState.currentSuite) {
+    __vitestState.currentSuite.tests.push(test);
+  } else {
+    __vitestState.tests.push(test);
+  }
+};
+
+export const test = it;
+
+export const expect = (actual) => ({
+  toBe: (expected) => { 
+    if (actual !== expected) {
+      const error = new Error(\`Expected \${JSON.stringify(expected)} but got \${JSON.stringify(actual)}\`);
+      error.actual = actual;
+      error.expected = expected;
+      throw error;
+    }
+  },
+  toEqual: (expected) => { 
+    const actualStr = JSON.stringify(actual);
+    const expectedStr = JSON.stringify(expected);
+    if (actualStr !== expectedStr) {
+      const error = new Error(\`Expected \${expectedStr} but got \${actualStr}\`);
+      error.actual = actual;
+      error.expected = expected;
+      throw error;
+    }
+  },
+  toBeTruthy: () => { 
+    if (!actual) {
+      const error = new Error(\`Expected truthy but got \${JSON.stringify(actual)}\`);
+      error.actual = actual;
+      throw error;
+    }
+  },
+  toBeFalsy: () => { 
+    if (actual) {
+      const error = new Error(\`Expected falsy but got \${JSON.stringify(actual)}\`);
+      error.actual = actual;
+      throw error;
+    }
+  },
+  toContain: (s) => { 
+    if (!actual.includes(s)) {
+      const error = new Error(\`Expected to contain \${JSON.stringify(s)}\`);
+      error.actual = actual;
+      error.expected = s;
+      throw error;
+    }
+  },
+  toMatch: (p) => { 
+    if (!p.test(actual)) {
+      const error = new Error(\`Expected to match \${p}\`);
+      error.actual = actual;
+      error.expected = p;
+      throw error;
+    }
+  },
+  toHaveProperty: (p) => { 
+    if (!(p in actual)) {
+      const error = new Error(\`Expected property \${p}\`);
+      error.actual = actual;
+      throw error;
+    }
+  },
+  toBeGreaterThan: (v) => { 
+    if (!(actual > v)) {
+      const error = new Error(\`Expected > \${v} but got \${actual}\`);
+      error.actual = actual;
+      error.expected = v;
+      throw error;
+    }
+  },
+  toBeGreaterThanOrEqual: (v) => { 
+    if (!(actual >= v)) {
+      const error = new Error(\`Expected >= \${v} but got \${actual}\`);
+      error.actual = actual;
+      error.expected = v;
+      throw error;
+    }
+  },
+  toBeLessThan: (v) => { 
+    if (!(actual < v)) {
+      const error = new Error(\`Expected < \${v} but got \${actual}\`);
+      error.actual = actual;
+      error.expected = v;
+      throw error;
+    }
+  },
+  not: {
+    toBe: (expected) => {
+      if (actual === expected) {
+        const error = new Error(\`Expected not to be \${JSON.stringify(expected)}\`);
+        error.actual = actual;
+        throw error;
+      }
+    },
+    toEqual: (expected) => {
+      const actualStr = JSON.stringify(actual);
+      const expectedStr = JSON.stringify(expected);
+      if (actualStr === expectedStr) {
+        const error = new Error(\`Expected not to equal \${expectedStr}\`);
+        error.actual = actual;
+        error.expected = expected;
+        throw error;
+      }
+    },
+    toBeTruthy: () => {
+      if (actual) {
+        const error = new Error(\`Expected not to be truthy but got \${JSON.stringify(actual)}\`);
+        error.actual = actual;
+        throw error;
+      }
+    },
+    toBeFalsy: () => {
+      if (!actual) {
+        const error = new Error(\`Expected not to be falsy but got \${JSON.stringify(actual)}\`);
+        error.actual = actual;
+        throw error;
+      }
+    },
+    toContain: (s) => {
+      if (actual.includes(s)) {
+        const error = new Error(\`Expected not to contain \${JSON.stringify(s)}\`);
+        error.actual = actual;
+        error.expected = s;
+        throw error;
+      }
+    }
+  }
+});
+
+export const beforeAll = (fn) => {
+  if (__vitestState.currentSuite) {
+    __vitestState.currentSuite.beforeAll = __vitestState.currentSuite.beforeAll || [];
+    __vitestState.currentSuite.beforeAll.push(fn);
+  }
+};
+
+export const afterAll = (fn) => {
+  if (__vitestState.currentSuite) {
+    __vitestState.currentSuite.afterAll = __vitestState.currentSuite.afterAll || [];
+    __vitestState.currentSuite.afterAll.push(fn);
+  }
+};
+
+export const beforeEach = (fn) => {
+  if (__vitestState.currentSuite) {
+    __vitestState.currentSuite.beforeEach = __vitestState.currentSuite.beforeEach || [];
+    __vitestState.currentSuite.beforeEach.push(fn);
+  }
+};
+
+export const afterEach = (fn) => {
+  if (__vitestState.currentSuite) {
+    __vitestState.currentSuite.afterEach = __vitestState.currentSuite.afterEach || [];
+    __vitestState.currentSuite.afterEach.push(fn);
+  }
+};
+
+// Firefox-specific helper
+export const firefox = {
+  screenshot: (selector) => {
+    const canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+    const window = Services.wm.getMostRecentWindow("navigator:browser");
+    const ctx = canvas.getContext("2d");
+    
+    if (selector) {
+      const element = window.document.querySelector(selector);
+      if (!element) throw new Error("Element not found: " + selector);
+      const rect = element.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      ctx.drawWindow(window, rect.left, rect.top, rect.width, rect.height, "rgb(255,255,255)");
+    } else {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      ctx.drawWindow(window, 0, 0, canvas.width, canvas.height, "rgb(255,255,255)");
+    }
+    
+    return { dataURL: canvas.toDataURL("image/png"), width: canvas.width, height: canvas.height };
+  }
+};
+`;
+  }
+
+  /**
+   * Resolve module path (similar to Node's resolution)
+   */
+  resolveModule(requestPath, basePath) {
+    // Handle vitest module specially
+    if (requestPath === 'vitest' || requestPath === '/vitest') {
+      return { type: 'vitest', content: this.getVitestModule() };
+    }
+
+    // Resolve relative imports
+    let fullPath;
+    if (requestPath.startsWith('/')) {
+      fullPath = path.join(this.baseDir, requestPath.slice(1));
+    } else if (requestPath.startsWith('.')) {
+      const baseFile = path.join(this.baseDir, basePath);
+      const baseDirectory = path.dirname(baseFile);
+      fullPath = path.resolve(baseDirectory, requestPath);
+    } else {
+      // Try node_modules resolution
+      fullPath = require.resolve(requestPath, { paths: [this.baseDir] });
+    }
+
+    // Add .js extension if missing
+    if (!path.extname(fullPath)) {
+      if (fs.existsSync(fullPath + '.js')) {
+        fullPath += '.js';
+      } else if (fs.existsSync(fullPath + '.mjs')) {
+        fullPath += '.mjs';
+      } else if (fs.existsSync(path.join(fullPath, 'index.js'))) {
+        fullPath = path.join(fullPath, 'index.js');
+      }
+    }
+
+    if (!fs.existsSync(fullPath)) {
+      throw new Error(`Module not found: ${requestPath}`);
+    }
+
+    const content = fs.readFileSync(fullPath, 'utf-8');
+    return { type: 'module', content, fullPath };
+  }
+
+  /**
+   * Start the HTTP server
+   */
+  async start() {
+    return new Promise((resolve, reject) => {
+      this.server = http.createServer((req, res) => {
+        try {
+          const url = new URL(req.url, `http://localhost:${this.port}`);
+          const modulePath = decodeURIComponent(url.pathname);
+          
+          console.log(`[module-server] Serving: ${modulePath}`);
+          
+          const resolved = this.resolveModule(modulePath, '');
+          
+          res.writeHead(200, {
+            'Content-Type': 'application/javascript; charset=utf-8',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'no-cache'
+          });
+          res.end(resolved.content);
+        } catch (error) {
+          console.error(`[module-server] Error serving ${req.url}:`, error.message);
+          res.writeHead(404, { 'Content-Type': 'text/plain' });
+          res.end(`Module not found: ${error.message}`);
+        }
+      });
+
+      this.server.listen(this.port, 'localhost', () => {
+        console.log(`[module-server] Started on http://localhost:${this.port}`);
+        resolve();
+      });
+
+      this.server.on('error', reject);
+    });
+  }
+
+  /**
+   * Stop the HTTP server
+   */
+  async stop() {
+    if (this.server) {
+      return new Promise((resolve) => {
+        this.server.close(() => {
+          console.log('[module-server] Stopped');
+          resolve();
+        });
+      });
+    }
+  }
+
+  /**
+   * Get the URL for a module
+   */
+  getModuleUrl(modulePath) {
+    return `http://localhost:${this.port}${modulePath.startsWith('/') ? '' : '/'}${modulePath}`;
+  }
+}
 
 class MarionetteClient {
   constructor(port = MARIONETTE_PORT) {
@@ -104,416 +441,186 @@ class MarionetteClient {
 }
 
 class FirefoxTestRunner {
-  constructor(client, vitest) {
+  constructor(client, vitest, moduleServer) {
     this.client = client;
     this.vitest = vitest;
+    this.moduleServer = moduleServer;
   }
 
-  async bundleTestFile(filePath) {
-    // Create a virtual module that exports our Vitest implementations
-    const vitestShimPlugin = {
-      name: 'vitest-shim',
-      setup(build) {
-        build.onResolve({ filter: /^vitest$/ }, args => {
-          return { path: args.path, namespace: 'vitest-shim' };
-        });
+  /**
+   * Prepare test file for execution with native ES6 imports
+   * Instead of bundling, we transform imports to use the module server
+   */
+  async prepareTestFile(filePath) {
+    const testCode = fs.readFileSync(filePath, 'utf-8');
+    const relativePath = path.relative(this.moduleServer.baseDir, filePath);
+    
+    // Transform vitest imports to use our module server
+    const transformedCode = testCode.replace(
+      /from\s+['"]vitest['"]/g,
+      `from '${this.moduleServer.getModuleUrl('/vitest')}'`
+    );
+    
+    return {
+      code: transformedCode,
+      url: this.moduleServer.getModuleUrl('/' + relativePath)
+    };
+  }
 
-        build.onLoad({ filter: /.*/, namespace: 'vitest-shim' }, () => {
-          return {
-            contents: `
-              // Re-export the globals that will be injected by the banner
-              export const describe = globalThis.describe;
-              export const it = globalThis.it;
-              export const test = globalThis.test;
-              export const expect = globalThis.expect;
-              export const beforeAll = globalThis.beforeAll;
-              export const afterAll = globalThis.afterAll;
-              export const beforeEach = globalThis.beforeEach;
-              export const afterEach = globalThis.afterEach;
-            `,
-            loader: 'js'
-          };
+  /**
+   * Create a test runner script that uses dynamic import
+   */
+  getTestRunnerScript(testModuleUrl) {
+    return `
+// Test runner that uses native ES6 imports
+(async function() {
+  try {
+    // Import the test module
+    const testModule = await import('${testModuleUrl}');
+    
+    // Import vitest API to get access to __vitestState and __vitestResults
+    const vitest = await import('${this.moduleServer.getModuleUrl('/vitest')}');
+    
+    // Runner function to execute all collected tests
+    const runTest = async (test, suitePath = []) => {
+      const fullName = [...suitePath, test.name].join(' > ');
+      try {
+        const result = test.fn();
+        if (result && typeof result.then === 'function') {
+          await result;
+        }
+        vitest.__vitestResults.passed.push(fullName);
+      } catch (error) {
+        vitest.__vitestResults.failed.push({ 
+          name: fullName, 
+          error: error.message || error.toString(),
+          stack: error.stack
         });
       }
     };
 
-    // Bundle the test file with all its imports using esbuild
-    const result = await esbuild.build({
-      entryPoints: [filePath],
-      bundle: true,
-      write: false,
-      platform: 'browser',
-      format: 'iife',
-      target: 'firefox115',
-      plugins: [vitestShimPlugin],
-      define: {
-        'process.env.NODE_ENV': '"test"',
-      },
-      // Inject vitest globals
-      banner: {
-        js: `
-          // Vitest test results collector
-          globalThis.__vitestResults = {
-            passed: [],
-            failed: [],
-            errors: [],
-            suites: []
-          };
-
-          // Real Vitest API implementation for Firefox chrome context
-          globalThis.__vitestState = {
-            currentSuite: null,
-            suites: [],
-            tests: []
-          };
-
-          const describe = globalThis.describe = (name, fn) => {
-            const parentSuite = globalThis.__vitestState.currentSuite;
-            const suite = { name, tests: [], suites: [], parent: parentSuite };
-            
-            if (parentSuite) {
-              parentSuite.suites.push(suite);
-            } else {
-              globalThis.__vitestState.suites.push(suite);
-            }
-            
-            globalThis.__vitestState.currentSuite = suite;
-            try {
-              fn();
-            } catch (error) {
-              globalThis.__vitestResults.errors.push({ suite: name, error: error.toString(), stack: error.stack });
-            }
-            globalThis.__vitestState.currentSuite = parentSuite;
-          };
-
-          const it = globalThis.it = (name, fn) => {
-            const test = { name, fn };
-            if (globalThis.__vitestState.currentSuite) {
-              globalThis.__vitestState.currentSuite.tests.push(test);
-            } else {
-              globalThis.__vitestState.tests.push(test);
-            }
-          };
-
-          const test = globalThis.test = it;
-
-          const expect = globalThis.expect = (actual) => ({
-            toBe: (expected) => { 
-              if (actual !== expected) {
-                const error = new Error(\`Expected \${JSON.stringify(expected)} but got \${JSON.stringify(actual)}\`);
-                error.actual = actual;
-                error.expected = expected;
-                throw error;
-              }
-            },
-            toEqual: (expected) => { 
-              const actualStr = JSON.stringify(actual);
-              const expectedStr = JSON.stringify(expected);
-              if (actualStr !== expectedStr) {
-                const error = new Error(\`Expected \${expectedStr} but got \${actualStr}\`);
-                error.actual = actual;
-                error.expected = expected;
-                throw error;
-              }
-            },
-            toBeTruthy: () => { 
-              if (!actual) {
-                const error = new Error(\`Expected truthy but got \${JSON.stringify(actual)}\`);
-                error.actual = actual;
-                throw error;
-              }
-            },
-            toBeFalsy: () => { 
-              if (actual) {
-                const error = new Error(\`Expected falsy but got \${JSON.stringify(actual)}\`);
-                error.actual = actual;
-                throw error;
-              }
-            },
-            toContain: (s) => { 
-              if (!actual.includes(s)) {
-                const error = new Error(\`Expected to contain \${JSON.stringify(s)}\`);
-                error.actual = actual;
-                error.expected = s;
-                throw error;
-              }
-            },
-            toMatch: (p) => { 
-              if (!p.test(actual)) {
-                const error = new Error(\`Expected to match \${p}\`);
-                error.actual = actual;
-                error.expected = p;
-                throw error;
-              }
-            },
-            toHaveProperty: (p) => { 
-              if (!(p in actual)) {
-                const error = new Error(\`Expected property \${p}\`);
-                error.actual = actual;
-                throw error;
-              }
-            },
-            toBeGreaterThan: (v) => { 
-              if (!(actual > v)) {
-                const error = new Error(\`Expected > \${v} but got \${actual}\`);
-                error.actual = actual;
-                error.expected = v;
-                throw error;
-              }
-            },
-            toBeGreaterThanOrEqual: (v) => { 
-              if (!(actual >= v)) {
-                const error = new Error(\`Expected >= \${v} but got \${actual}\`);
-                error.actual = actual;
-                error.expected = v;
-                throw error;
-              }
-            },
-            toBeLessThan: (v) => { 
-              if (!(actual < v)) {
-                const error = new Error(\`Expected < \${v} but got \${actual}\`);
-                error.actual = actual;
-                error.expected = v;
-                throw error;
-              }
-            },
-            not: {
-              toBe: (expected) => {
-                if (actual === expected) {
-                  const error = new Error(\`Expected not to be \${JSON.stringify(expected)}\`);
-                  error.actual = actual;
-                  throw error;
-                }
-              },
-              toEqual: (expected) => {
-                const actualStr = JSON.stringify(actual);
-                const expectedStr = JSON.stringify(expected);
-                if (actualStr === expectedStr) {
-                  const error = new Error(\`Expected not to equal \${expectedStr}\`);
-                  error.actual = actual;
-                  error.expected = expected;
-                  throw error;
-                }
-              },
-              toBeTruthy: () => {
-                if (actual) {
-                  const error = new Error(\`Expected not to be truthy but got \${JSON.stringify(actual)}\`);
-                  error.actual = actual;
-                  throw error;
-                }
-              },
-              toBeFalsy: () => {
-                if (!actual) {
-                  const error = new Error(\`Expected not to be falsy but got \${JSON.stringify(actual)}\`);
-                  error.actual = actual;
-                  throw error;
-                }
-              },
-              toContain: (s) => {
-                if (actual.includes(s)) {
-                  const error = new Error(\`Expected not to contain \${JSON.stringify(s)}\`);
-                  error.actual = actual;
-                  error.expected = s;
-                  throw error;
-                }
-              }
-            }
-          });
-
-          const beforeAll = globalThis.beforeAll = (fn) => {
-            if (globalThis.__vitestState.currentSuite) {
-              globalThis.__vitestState.currentSuite.beforeAll = globalThis.__vitestState.currentSuite.beforeAll || [];
-              globalThis.__vitestState.currentSuite.beforeAll.push(fn);
-            }
-          };
-
-          const afterAll = globalThis.afterAll = (fn) => {
-            if (globalThis.__vitestState.currentSuite) {
-              globalThis.__vitestState.currentSuite.afterAll = globalThis.__vitestState.currentSuite.afterAll || [];
-              globalThis.__vitestState.currentSuite.afterAll.push(fn);
-            }
-          };
-
-          const beforeEach = globalThis.beforeEach = (fn) => {
-            if (globalThis.__vitestState.currentSuite) {
-              globalThis.__vitestState.currentSuite.beforeEach = globalThis.__vitestState.currentSuite.beforeEach || [];
-              globalThis.__vitestState.currentSuite.beforeEach.push(fn);
-            }
-          };
-
-          const afterEach = globalThis.afterEach = (fn) => {
-            if (globalThis.__vitestState.currentSuite) {
-              globalThis.__vitestState.currentSuite.afterEach = globalThis.__vitestState.currentSuite.afterEach || [];
-              globalThis.__vitestState.currentSuite.afterEach.push(fn);
-            }
-          };
-
-          // Firefox-specific helper
-          globalThis.firefox = {
-            screenshot: (selector) => {
-              const canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-              const window = Services.wm.getMostRecentWindow("navigator:browser");
-              const ctx = canvas.getContext("2d");
-              
-              if (selector) {
-                const element = window.document.querySelector(selector);
-                if (!element) throw new Error("Element not found: " + selector);
-                const rect = element.getBoundingClientRect();
-                canvas.width = rect.width;
-                canvas.height = rect.height;
-                ctx.drawWindow(window, rect.left, rect.top, rect.width, rect.height, "rgb(255,255,255)");
-              } else {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-                ctx.drawWindow(window, 0, 0, canvas.width, canvas.height, "rgb(255,255,255)");
-              }
-              
-              return { dataURL: canvas.toDataURL("image/png"), width: canvas.width, height: canvas.height };
-            }
-          };
-
-          // Runner function to execute all collected tests
-          globalThis.__runVitestTests = async function() {
-            const runTest = async (test, suitePath = []) => {
-              const fullName = [...suitePath, test.name].join(' > ');
-              try {
-                const result = test.fn();
-                if (result && typeof result.then === 'function') {
-                  await result;
-                }
-                globalThis.__vitestResults.passed.push(fullName);
-              } catch (error) {
-                globalThis.__vitestResults.failed.push({ 
-                  name: fullName, 
-                  error: error.message || error.toString(),
-                  stack: error.stack
-                });
-              }
-            };
-
-            const runSuite = async (suite, suitePath = []) => {
-              const currentPath = [...suitePath, suite.name];
-              
-              // Run beforeAll hooks
-              if (suite.beforeAll) {
-                for (const hook of suite.beforeAll) {
-                  try {
-                    await hook();
-                  } catch (error) {
-                    globalThis.__vitestResults.errors.push({ 
-                      suite: currentPath.join(' > '), 
-                      hook: 'beforeAll',
-                      error: error.message || error.toString(),
-                      stack: error.stack
-                    });
-                  }
-                }
-              }
-
-              // Run tests in this suite
-              for (const test of suite.tests) {
-                // Run beforeEach hooks
-                if (suite.beforeEach) {
-                  for (const hook of suite.beforeEach) {
-                    try {
-                      await hook();
-                    } catch (error) {
-                      globalThis.__vitestResults.errors.push({ 
-                        suite: currentPath.join(' > '),
-                        hook: 'beforeEach',
-                        error: error.message || error.toString(),
-                        stack: error.stack
-                      });
-                    }
-                  }
-                }
-
-                await runTest(test, currentPath);
-
-                // Run afterEach hooks
-                if (suite.afterEach) {
-                  for (const hook of suite.afterEach) {
-                    try {
-                      await hook();
-                    } catch (error) {
-                      globalThis.__vitestResults.errors.push({ 
-                        suite: currentPath.join(' > '),
-                        hook: 'afterEach',
-                        error: error.message || error.toString(),
-                        stack: error.stack
-                      });
-                    }
-                  }
-                }
-              }
-
-              // Run nested suites
-              for (const nestedSuite of suite.suites) {
-                await runSuite(nestedSuite, currentPath);
-              }
-
-              // Run afterAll hooks
-              if (suite.afterAll) {
-                for (const hook of suite.afterAll) {
-                  try {
-                    await hook();
-                  } catch (error) {
-                    globalThis.__vitestResults.errors.push({ 
-                      suite: currentPath.join(' > '),
-                      hook: 'afterAll',
-                      error: error.message || error.toString(),
-                      stack: error.stack
-                    });
-                  }
-                }
-              }
-            };
-
-            // Execute all root-level tests
-            for (const test of globalThis.__vitestState.tests) {
-              await runTest(test);
-            }
-
-            // Execute all suites
-            for (const suite of globalThis.__vitestState.suites) {
-              await runSuite(suite);
-            }
-
-            return globalThis.__vitestResults;
-          };
-        `
-      },
-      footer: {
-        js: `
-          // Auto-execute tests after bundle loads
-          globalThis.__runVitestTests().then(results => {
-            globalThis.__VITEST_RESULTS__ = results;
-            globalThis.__VITEST_COMPLETE__ = true;
-          }).catch(error => {
-            globalThis.__VITEST_RESULTS__ = {
-              passed: [],
-              failed: [],
-              errors: [{ suite: 'Test execution', error: error.toString(), stack: error.stack }]
-            };
-            globalThis.__VITEST_COMPLETE__ = true;
-          });
-        `
+    const runSuite = async (suite, suitePath = []) => {
+      const currentPath = [...suitePath, suite.name];
+      
+      // Run beforeAll hooks
+      if (suite.beforeAll) {
+        for (const hook of suite.beforeAll) {
+          try {
+            await hook();
+          } catch (error) {
+            vitest.__vitestResults.errors.push({ 
+              suite: currentPath.join(' > '), 
+              hook: 'beforeAll',
+              error: error.message || error.toString(),
+              stack: error.stack
+            });
+          }
+        }
       }
-    });
 
-    return result.outputFiles[0].text;
+      // Run tests in this suite
+      for (const test of suite.tests) {
+        // Run beforeEach hooks
+        if (suite.beforeEach) {
+          for (const hook of suite.beforeEach) {
+            try {
+              await hook();
+            } catch (error) {
+              vitest.__vitestResults.errors.push({ 
+                suite: currentPath.join(' > '),
+                hook: 'beforeEach',
+                error: error.message || error.toString(),
+                stack: error.stack
+              });
+            }
+          }
+        }
+
+        await runTest(test, currentPath);
+
+        // Run afterEach hooks
+        if (suite.afterEach) {
+          for (const hook of suite.afterEach) {
+            try {
+              await hook();
+            } catch (error) {
+              vitest.__vitestResults.errors.push({ 
+                suite: currentPath.join(' > '),
+                hook: 'afterEach',
+                error: error.message || error.toString(),
+                stack: error.stack
+              });
+            }
+          }
+        }
+      }
+
+      // Run nested suites
+      for (const nestedSuite of suite.suites) {
+        await runSuite(nestedSuite, currentPath);
+      }
+
+      // Run afterAll hooks
+      if (suite.afterAll) {
+        for (const hook of suite.afterAll) {
+          try {
+            await hook();
+          } catch (error) {
+            vitest.__vitestResults.errors.push({ 
+              suite: currentPath.join(' > '),
+              hook: 'afterAll',
+              error: error.message || error.toString(),
+              stack: error.stack
+            });
+          }
+        }
+      }
+    };
+
+    // Execute all root-level tests
+    for (const test of vitest.__vitestState.tests) {
+      await runTest(test);
+    }
+
+    // Execute all suites
+    for (const suite of vitest.__vitestState.suites) {
+      await runSuite(suite);
+    }
+
+    // Mark as complete
+    globalThis.__VITEST_RESULTS__ = vitest.__vitestResults;
+    globalThis.__VITEST_COMPLETE__ = true;
+  } catch (error) {
+    globalThis.__VITEST_RESULTS__ = {
+      passed: [],
+      failed: [],
+      errors: [{ suite: 'Test execution', error: error.toString(), stack: error.stack }]
+    };
+    globalThis.__VITEST_COMPLETE__ = true;
+    console.error('[vitest] Test execution error:', error);
+  }
+})();
+`;
   }
 
   async runTestFile(spec) {
     try {
-      // Bundle the test file with all imports
-      const bundledCode = await this.bundleTestFile(spec.moduleId);
+      // Prepare the test file (transform imports)
+      const { code, url } = await this.prepareTestFile(spec.moduleId);
       
-      // Execute the bundled code in Firefox
-      await this.client.executeScript(bundledCode, []);
+      // Save transformed test to a temporary location the server can serve
+      const tempTestPath = path.join(this.moduleServer.baseDir, '.vitest-temp', path.basename(spec.moduleId));
+      fs.mkdirSync(path.dirname(tempTestPath), { recursive: true });
+      fs.writeFileSync(tempTestPath, code);
       
-      // Poll for test completion (async tests may take time)
-      const maxWaitMs = 30000; // 30 seconds max
+      // Get the test runner script
+      const runnerScript = this.getTestRunnerScript(url);
+      
+      // Execute the runner script in Firefox
+      await this.client.executeScript(runnerScript, []);
+      
+      // Poll for test completion
+      const maxWaitMs = 30000;
       const startTime = Date.now();
       
       while (Date.now() - startTime < maxWaitMs) {
@@ -524,6 +631,13 @@ class FirefoxTestRunner {
       
       // Retrieve results
       const results = await this.client.executeScript('return globalThis.__VITEST_RESULTS__;', []);
+      
+      // Clean up temp file
+      try {
+        fs.unlinkSync(tempTestPath);
+      } catch (e) {
+        // Ignore cleanup errors
+      }
       
       return {
         passed: results.passed || [],
@@ -547,25 +661,33 @@ class FirefoxTestRunner {
 module.exports = async (vitest, options) => {
   const port = vitest.config.poolOptions?.firefox?.marionettePort || MARIONETTE_PORT;
   const client = new MarionetteClient(port);
+  const baseDir = process.cwd();
+  const moduleServer = new ModuleServer(baseDir);
 
   return {
     name: 'firefox-pool',
     
     async runTests(specs) {
-      vitest.logger.console.log('[firefox-pool] Connecting to Firefox...');
+      vitest.logger.console.log('[firefox-pool] Starting module server...');
       
       try {
+        // Start the module server
+        await moduleServer.start();
+        vitest.logger.console.log(`[firefox-pool] Module server running on http://localhost:${MODULE_SERVER_PORT}`);
+        
+        // Connect to Firefox
+        vitest.logger.console.log('[firefox-pool] Connecting to Firefox...');
         await client.connect();
         await client.createSession();
         await client.setContext('chrome');
-        vitest.logger.console.log('[firefox-pool] Connected');
+        vitest.logger.console.log('[firefox-pool] Connected to Firefox');
         
-        const testRunner = new FirefoxTestRunner(client, vitest);
+        const testRunner = new FirefoxTestRunner(client, vitest, moduleServer);
         
         for (const spec of specs) {
           vitest.state.clearFiles(spec.project);
-          const path = normalize(spec.moduleId).replace(normalize(process.cwd()), '');
-          vitest.logger.console.log(`[firefox-pool] Running ${path}`);
+          const testPath = normalize(spec.moduleId).replace(normalize(process.cwd()), '');
+          vitest.logger.console.log(`[firefox-pool] Running ${testPath}`);
           
           const results = await testRunner.runTestFile(spec);
           const total = results.passed.length + results.failed.length;
@@ -577,6 +699,9 @@ module.exports = async (vitest, options) => {
       } catch (error) {
         vitest.logger.console.error(`[firefox-pool] ${error.message}\nEnsure Firefox is running with marionette.port=2828`);
         throw error;
+      } finally {
+        // Clean up module server
+        await moduleServer.stop();
       }
     },
     
@@ -586,6 +711,7 @@ module.exports = async (vitest, options) => {
     
     async close() {
       vitest.logger.console.log('[firefox-pool] Closing');
+      await moduleServer.stop();
       client && client.disconnect();
     },
   };
