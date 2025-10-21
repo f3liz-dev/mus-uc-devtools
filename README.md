@@ -170,10 +170,36 @@ const { wasmPath } = require('mus-uc-devtools');
 
 ## Testing
 
+### Legacy Test (Headless Firefox)
 ```bash
 npm install
 npm test
 ```
+
+### Vitest Integration (v4)
+
+The project includes a custom Vitest v4 pool for running tests in Firefox's chrome context. This enables:
+- Chrome context testing (userChrome CSS, XPCOM, etc.)
+- Visual regression testing via screenshots
+- Integration with modern test tooling
+
+**Prerequisites**: Firefox must be running with `marionette.port=2828` set in `about:config`.
+
+```bash
+# Run all Vitest tests
+npm run test:vitest
+
+# Run only Firefox chrome context tests
+npm run test:vitest:firefox
+
+# Run only Node.js tests
+npm run test:vitest:node
+
+# Watch mode
+npm run test:vitest:watch
+```
+
+See [vitest-pool/README.md](vitest-pool/README.md) for detailed documentation on the Vitest integration.
 
 ## Documentation
 

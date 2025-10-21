@@ -8,6 +8,10 @@
   },
   "scripts": {
     "test": "node tests/headless-test.js",
+    "test:vitest": "vitest",
+    "test:vitest:watch": "vitest --watch",
+    "test:vitest:firefox": "vitest --project firefox-chrome-context",
+    "test:vitest:node": "vitest --project node-tests",
     "build": "cargo build --release --target wasm32-wasip1 && mkdir -p bin && cp target/wasm32-wasip1/release/mus-uc.wasm bin/",
     "prepublishOnly": "npm run build"
   },
@@ -35,6 +39,9 @@
     "node": ">=18.0.0"
   },
   "devDependencies": {
-    "@puppeteer/browsers": "^2.4.1"
+    "@puppeteer/browsers": "^2.4.1",
+    "@vitest/runner": "^4.0.0-beta.18",
+    "@vitest/utils": "^4.0.0-beta.18",
+    "vitest": "^4.0.0-beta.18"
   }
 }
