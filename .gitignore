@@ -22,7 +22,6 @@ target
 
 # Node.js
 node_modules/
-package-lock.json
 
 # Firefox cache for tests
 .firefox-cache/
@@ -36,3 +35,6 @@ screenshots/
 
 # Build output for npm publishing (generated during prepublishOnly)
 bin/
+
+# wasm-pack output
+pkg/

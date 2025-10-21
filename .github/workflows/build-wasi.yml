@@ -37,3 +37,42 @@ jobs:
           name: mus-uc-wasm
           path: target/wasm32-wasip1/release/mus-uc.wasm
           retention-days: 7
+  
+  build-wasm-pack:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install Node.js dependencies
+        run: npm ci
+      
+      - name: Build with wasm-pack
+        run: npm run build:wasm-pack
+      
+      - name: Verify wasm-pack output
+        run: |
+          ls -lh pkg/
+          file pkg/*.wasm || echo "WASM file not found in expected location"
+      
+      - name: Upload wasm-pack artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mus-uc-wasm-pack
+          path: pkg/
+          retention-days: 7
