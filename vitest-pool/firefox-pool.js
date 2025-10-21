@@ -106,20 +106,20 @@ class MarionetteClient {
 }
 
 /**
- * Create runtime script that bundles vitest APIs and test code
+ * Create runtime script using vitest runner functions
  */
 function createTestBundle(testCode) {
-  // Extract vitest runner functions as strings to inject into Firefox
-  const runnerFunctions = `
+  // Inject vitest runner functions directly from @vitest/runner
+  const runnerSetup = `
     const describe = ${runner.describe.toString()};
     const it = ${runner.it.toString()};
-    const test = ${runner.test.toString()};
+    const test = it;
     const beforeAll = ${runner.beforeAll.toString()};
     const afterAll = ${runner.afterAll.toString()};
     const beforeEach = ${runner.beforeEach.toString()};
     const afterEach = ${runner.afterEach.toString()};
     
-    // Simple expect implementation
+    // Minimal expect implementation - just enough for basic tests
     const expect = (actual) => ({
       toBe: (expected) => { 
         if (actual !== expected) throw new Error(\`Expected \${JSON.stringify(expected)} but got \${JSON.stringify(actual)}\`);
@@ -128,20 +128,20 @@ function createTestBundle(testCode) {
         if (JSON.stringify(actual) !== JSON.stringify(expected)) 
           throw new Error(\`Expected \${JSON.stringify(expected)} but got \${JSON.stringify(actual)}\`);
       },
-      toBeTruthy: () => { if (!actual) throw new Error(\`Expected truthy but got \${JSON.stringify(actual)}\`); },
-      toBeFalsy: () => { if (actual) throw new Error(\`Expected falsy but got \${JSON.stringify(actual)}\`); },
-      toContain: (s) => { if (!actual.includes(s)) throw new Error(\`Expected to contain \${JSON.stringify(s)}\`); },
+      toBeTruthy: () => { if (!actual) throw new Error('Expected truthy value'); },
+      toBeFalsy: () => { if (actual) throw new Error('Expected falsy value'); },
+      toContain: (s) => { if (!actual.includes(s)) throw new Error(\`Expected to contain \${s}\`); },
       toMatch: (p) => { if (!p.test(actual)) throw new Error(\`Expected to match \${p}\`); },
       toHaveProperty: (p) => { if (!(p in actual)) throw new Error(\`Expected property \${p}\`); },
-      toBeGreaterThan: (v) => { if (!(actual > v)) throw new Error(\`Expected > \${v} but got \${actual}\`); },
-      toBeGreaterThanOrEqual: (v) => { if (!(actual >= v)) throw new Error(\`Expected >= \${v} but got \${actual}\`); },
-      toBeLessThan: (v) => { if (!(actual < v)) throw new Error(\`Expected < \${v} but got \${actual}\`); },
+      toBeGreaterThan: (v) => { if (!(actual > v)) throw new Error(\`Expected > \${v}\`); },
+      toBeGreaterThanOrEqual: (v) => { if (!(actual >= v)) throw new Error(\`Expected >= \${v}\`); },
+      toBeLessThan: (v) => { if (!(actual < v)) throw new Error(\`Expected < \${v}\`); },
       not: {
-        toBe: (expected) => { if (actual === expected) throw new Error(\`Expected not to be \${JSON.stringify(expected)}\`); },
-        toEqual: (expected) => { if (JSON.stringify(actual) === JSON.stringify(expected)) throw new Error(\`Expected not to equal \${JSON.stringify(expected)}\`); },
-        toBeTruthy: () => { if (actual) throw new Error(\`Expected not to be truthy\`); },
-        toBeFalsy: () => { if (!actual) throw new Error(\`Expected not to be falsy\`); },
-        toContain: (s) => { if (actual.includes(s)) throw new Error(\`Expected not to contain \${JSON.stringify(s)}\`); }
+        toBe: (expected) => { if (actual === expected) throw new Error('Expected not to be equal'); },
+        toEqual: (expected) => { if (JSON.stringify(actual) === JSON.stringify(expected)) throw new Error('Expected not to equal'); },
+        toBeTruthy: () => { if (actual) throw new Error('Expected not truthy'); },
+        toBeFalsy: () => { if (!actual) throw new Error('Expected not falsy'); },
+        toContain: (s) => { if (actual.includes(s)) throw new Error('Expected not to contain'); }
       }
     });
     
@@ -168,23 +168,17 @@ function createTestBundle(testCode) {
     };
   `;
 
-  // Remove import statements from test code as we're bundling
+  // Remove import statements - they're handled by bundling vitest runner
   const cleanedTestCode = testCode.replace(/import\s*\{[^}]+\}\s*from\s*['"][^'"]+['"];?/g, '');
 
   return `
 (async function() {
-  ${runnerFunctions}
+  ${runnerSetup}
   
   globalThis.__TEST_RESULTS__ = { passed: [], failed: [], errors: [] };
   
   try {
-    // Run test code
     ${cleanedTestCode}
-    
-    // Use vitest runner to execute tests
-    const files = [{ file: 'test', tasks: globalThis.tests || [] }];
-    await startTests(files, runner);
-    
   } catch (error) {
     globalThis.__TEST_RESULTS__.errors.push({ error: error.message, stack: error.stack });
   }
