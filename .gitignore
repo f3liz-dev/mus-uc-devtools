@@ -31,5 +31,8 @@ package-lock.json
 *.png
 !.github/assets/*.png
 
+# Vitest
+screenshots/
+
 # Build output for npm publishing (generated during prepublishOnly)
 bin/
