@@ -46,7 +46,8 @@ jobs:
           user_pref("toolkit.telemetry.enabled", false);
           EOF
           
-          # Start Firefox in background
+          # Start Firefox in background with required flags
+          # Note: --remote-allow-system-access is required for setContext('chrome')
           firefox --headless --marionette --no-remote --remote-allow-system-access --profile /tmp/firefox-test-profile &
           FIREFOX_PID=$!
           echo "FIREFOX_PID=$FIREFOX_PID" >> $GITHUB_ENV

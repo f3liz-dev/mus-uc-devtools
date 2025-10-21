@@ -478,135 +478,73 @@ class FirefoxTestRunner {
   }
 
   /**
-   * Create a test runner script that uses ChromeUtils.importESModule
-   * This is the proper way to load ES modules in Firefox chrome context
+   * Create a bundled runner script with Vitest API and test code inline
+   * This avoids HTTP fetch issues in Firefox chrome context
    */
-  getTestRunnerScript(testModuleUrl) {
+  getBundledRunnerScript(vitestCode, testCode) {
+    // Transform ES6 module code by removing export keywords and wrapping in scope
+    // This creates local variables that we then expose globally
+    const vitestCodeWithoutExports = vitestCode
+      .replace(/export const /g, 'const ')
+      .replace(/export function /g, 'function ')
+      .replace(/export \{[^}]+\};?/g, '');
+    
+    // Remove import statements from test code
+    const transformedTestCode = testCode
+      .replace(/import\s*\{[^}]+\}\s*from\s*['"][^'"]+['"];?/g, '');
+    
     return `
-// Test runner using ChromeUtils.importESModule (Firefox chrome context API)
-(async function() {
+(function() {
+  // Initialize results
+  globalThis.__VITEST_RESULTS__ = {
+    passed: [],
+    failed: [],
+    errors: []
+  };
+  globalThis.__VITEST_COMPLETE__ = false;
+  
   try {
-    // Import vitest API using ChromeUtils (works in chrome context)
-    const vitestUrl = '${this.moduleServer.getModuleUrl('/vitest')}';
-    const vitest = ChromeUtils.importESModule ? 
-      ChromeUtils.importESModule(vitestUrl) :
-      await import(vitestUrl);
+    // Evaluate Vitest API in local scope
+    ${vitestCodeWithoutExports}
     
-    // Import the test module
-    const testUrl = '${testModuleUrl}';
-    const testModule = ChromeUtils.importESModule ?
-      ChromeUtils.importESModule(testUrl) :
-      await import(testUrl);
+    // Now expose the local variables globally
+    globalThis.describe = describe;
+    globalThis.it = it;
+    globalThis.test = test;
+    globalThis.expect = expect;
+    globalThis.beforeAll = beforeAll;
+    globalThis.afterAll = afterAll;
+    globalThis.beforeEach = beforeEach;
+    globalThis.afterEach = afterEach;
+    globalThis.firefox = firefox;
+    globalThis.__vitestResults = __vitestResults;
+    globalThis.__vitestState = __vitestState;
     
-    // Runner function to execute all collected tests
-    const runTest = async (test, suitePath = []) => {
-      const fullName = [...suitePath, test.name].join(' > ');
-      try {
-        const result = test.fn();
-        if (result && typeof result.then === 'function') {
-          await result;
-        }
-        vitest.__vitestResults.passed.push(fullName);
-      } catch (error) {
-        vitest.__vitestResults.failed.push({ 
-          name: fullName, 
-          error: error.message || error.toString(),
-          stack: error.stack
-        });
-      }
+    const vitest = {
+      __vitestResults: __vitestResults,
+      __vitestState: __vitestState
     };
-
-    const runSuite = async (suite, suitePath = []) => {
-      const currentPath = [...suitePath, suite.name];
+    
+    // Inline test code
+    ${transformedTestCode}
+    
+    // Now run tests asynchronously
+    (async function() {
+      // Runner functions...
+      ${this.getTestRunnerFunctions()}
       
-      // Run beforeAll hooks
-      if (suite.beforeAll) {
-        for (const hook of suite.beforeAll) {
-          try {
-            await hook();
-          } catch (error) {
-            vitest.__vitestResults.errors.push({ 
-              suite: currentPath.join(' > '), 
-              hook: 'beforeAll',
-              error: error.message || error.toString(),
-              stack: error.stack
-            });
-          }
-        }
+      // Execute tests
+      for (const test of vitest.__vitestState.tests) {
+        await runTest(test);
       }
-
-      // Run tests in this suite
-      for (const test of suite.tests) {
-        // Run beforeEach hooks
-        if (suite.beforeEach) {
-          for (const hook of suite.beforeEach) {
-            try {
-              await hook();
-            } catch (error) {
-              vitest.__vitestResults.errors.push({ 
-                suite: currentPath.join(' > '),
-                hook: 'beforeEach',
-                error: error.message || error.toString(),
-                stack: error.stack
-              });
-            }
-          }
-        }
-
-        await runTest(test, currentPath);
-
-        // Run afterEach hooks
-        if (suite.afterEach) {
-          for (const hook of suite.afterEach) {
-            try {
-              await hook();
-            } catch (error) {
-              vitest.__vitestResults.errors.push({ 
-                suite: currentPath.join(' > '),
-                hook: 'afterEach',
-                error: error.message || error.toString(),
-                stack: error.stack
-              });
-            }
-          }
-        }
+      for (const suite of vitest.__vitestState.suites) {
+        await runSuite(suite);
       }
-
-      // Run nested suites
-      for (const nestedSuite of suite.suites) {
-        await runSuite(nestedSuite, currentPath);
-      }
-
-      // Run afterAll hooks
-      if (suite.afterAll) {
-        for (const hook of suite.afterAll) {
-          try {
-            await hook();
-          } catch (error) {
-            vitest.__vitestResults.errors.push({ 
-              suite: currentPath.join(' > '),
-              hook: 'afterAll',
-              error: error.message || error.toString(),
-              stack: error.stack
-            });
-          }
-        }
-      }
-    };
-
-    // Execute all root-level tests
-    for (const test of vitest.__vitestState.tests) {
-      await runTest(test);
-    }
-
-    // Execute all suites
-    for (const suite of vitest.__vitestState.suites) {
-      await runSuite(suite);
-    }
-
-    // Mark as complete
-    globalThis.__VITEST_RESULTS__ = vitest.__vitestResults;
-    globalThis.__VITEST_COMPLETE__ = true;
+      
+      globalThis.__VITEST_RESULTS__ = vitest.__vitestResults;
+      globalThis.__VITEST_COMPLETE__ = true;
+    })();
+    
   } catch (error) {
     globalThis.__VITEST_RESULTS__ = {
       passed: [],
@@ -614,26 +552,129 @@ class FirefoxTestRunner {
       errors: [{ suite: 'Test execution', error: error.toString(), stack: error.stack }]
     };
     globalThis.__VITEST_COMPLETE__ = true;
-    console.error('[vitest] Test execution error:', error);
   }
 })();
 `;
   }
 
+  /**
+   * Get test runner functions as a string
+   */
+  getTestRunnerFunctions() {
+    return `
+const runTest = async (test, suitePath = []) => {
+  const fullName = [...suitePath, test.name].join(' > ');
+  try {
+    const result = test.fn();
+    if (result && typeof result.then === 'function') {
+      await result;
+    }
+    globalThis.__vitestResults.passed.push(fullName);
+  } catch (error) {
+    globalThis.__vitestResults.failed.push({ 
+      name: fullName, 
+      error: error.message || error.toString(),
+      stack: error.stack
+    });
+  }
+};
+
+const runSuite = async (suite, suitePath = []) => {
+  const currentPath = [...suitePath, suite.name];
+  
+  if (suite.beforeAll) {
+    for (const hook of suite.beforeAll) {
+      try {
+        await hook();
+      } catch (error) {
+        globalThis.__vitestResults.errors.push({ 
+          suite: currentPath.join(' > '), 
+          hook: 'beforeAll',
+          error: error.message || error.toString(),
+          stack: error.stack
+        });
+      }
+    }
+  }
+
+  for (const test of suite.tests) {
+    if (suite.beforeEach) {
+      for (const hook of suite.beforeEach) {
+        try {
+          await hook();
+        } catch (error) {
+          globalThis.__vitestResults.errors.push({ 
+            suite: currentPath.join(' > '),
+            hook: 'beforeEach',
+            error: error.message || error.toString(),
+            stack: error.stack
+          });
+        }
+      }
+    }
+
+    await runTest(test, currentPath);
+
+    if (suite.afterEach) {
+      for (const hook of suite.afterEach) {
+        try {
+          await hook();
+        } catch (error) {
+          globalThis.__vitestResults.errors.push({ 
+            suite: currentPath.join(' > '),
+            hook: 'afterEach',
+            error: error.message || error.toString(),
+            stack: error.stack
+          });
+        }
+      }
+    }
+  }
+
+  for (const nestedSuite of suite.suites) {
+    await runSuite(nestedSuite, currentPath);
+  }
+
+  if (suite.afterAll) {
+    for (const hook of suite.afterAll) {
+      try {
+        await hook();
+      } catch (error) {
+        globalThis.__vitestResults.errors.push({ 
+          suite: currentPath.join(' > '),
+          hook: 'afterAll',
+          error: error.message || error.toString(),
+          stack: error.stack
+        });
+      }
+    }
+  }
+};
+`;
+  }
+
+
+
   async runTestFile(spec) {
     try {
-      // Prepare the test file (transform imports)
-      const { code, url } = await this.prepareTestFile(spec.moduleId);
+      // First test if executeScript works at all
+      const testScript = 'globalThis.__TEST__ = "works"; return globalThis.__TEST__;';
+      const testResult = await this.client.executeScript(testScript, []);
+      console.log('[firefox-pool] Test script result:', JSON.stringify(testResult));
       
-      // Save transformed test to a temporary location the server can serve
-      const tempTestPath = path.join(this.moduleServer.baseDir, '.vitest-temp', path.basename(spec.moduleId));
-      fs.mkdirSync(path.dirname(tempTestPath), { recursive: true });
-      fs.writeFileSync(tempTestPath, code);
+      // Read test file and vitest module
+      const testCode = fs.readFileSync(spec.moduleId, 'utf-8');
+      const vitestCode = this.moduleServer.getVitestModule();
       
-      // Get the test runner script
-      const runnerScript = this.getTestRunnerScript(url);
+      // Create a single bundled script with everything inline
+      const runnerScript = this.getBundledRunnerScript(vitestCode, testCode);
       
-      // Execute the runner script in Firefox
+      // Save for debugging
+      const debugPath = path.join(this.moduleServer.baseDir, '.vitest-temp', 'debug-runner.js');
+      fs.writeFileSync(debugPath, runnerScript);
+      console.log('[firefox-pool] Saved runner script to:', debugPath);
+      
+      // Execute the bundled script in Firefox
       await this.client.executeScript(runnerScript, []);
       
       // Poll for test completion
@@ -649,6 +690,13 @@ class FirefoxTestRunner {
       // Retrieve results
       const results = await this.client.executeScript('return globalThis.__VITEST_RESULTS__;', []);
       
+      // Debug logging
+      if (!results) {
+        console.error('[firefox-pool] __VITEST_RESULTS__ is undefined/null');
+      } else {
+        console.log('[firefox-pool] Results:', JSON.stringify(results, null, 2));
+      }
+      
       // Clean up temp file
       try {
         fs.unlinkSync(tempTestPath);
@@ -657,9 +705,9 @@ class FirefoxTestRunner {
       }
       
       return {
-        passed: results.passed || [],
-        failed: results.failed || [],
-        errors: results.errors || []
+        passed: results ? results.passed || [] : [],
+        failed: results ? results.failed || [] : [],
+        errors: results ? results.errors || [] : []
       };
     } catch (error) {
       return { 
