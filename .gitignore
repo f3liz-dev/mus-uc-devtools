@@ -30,10 +30,6 @@ node_modules/
 *.png
 !.github/assets/*.png
 
-# Vitest
-screenshots/
-.vitest-temp/
-
 # Build output for npm publishing (generated during prepublishOnly)
 bin/
 
