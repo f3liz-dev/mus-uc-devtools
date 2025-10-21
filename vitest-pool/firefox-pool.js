@@ -488,12 +488,14 @@ class FirefoxTestRunner {
           // Auto-execute tests after bundle loads
           globalThis.__runVitestTests().then(results => {
             globalThis.__VITEST_RESULTS__ = results;
+            globalThis.__VITEST_COMPLETE__ = true;
           }).catch(error => {
             globalThis.__VITEST_RESULTS__ = {
               passed: [],
               failed: [],
               errors: [{ suite: 'Test execution', error: error.toString(), stack: error.stack }]
             };
+            globalThis.__VITEST_COMPLETE__ = true;
           });
         `
       }
@@ -510,8 +512,15 @@ class FirefoxTestRunner {
       // Execute the bundled code in Firefox
       await this.client.executeScript(bundledCode, []);
       
-      // Wait a bit for async tests to complete
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Poll for test completion (async tests may take time)
+      const maxWaitMs = 30000; // 30 seconds max
+      const startTime = Date.now();
+      
+      while (Date.now() - startTime < maxWaitMs) {
+        const complete = await this.client.executeScript('return globalThis.__VITEST_COMPLETE__;', []);
+        if (complete) break;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
       
       // Retrieve results
       const results = await this.client.executeScript('return globalThis.__VITEST_RESULTS__;', []);
