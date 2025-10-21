@@ -1,15 +1,3 @@
-/// Simple Marionette protocol client for Firefox automation
-///
-/// This module implements a basic client for the Marionette protocol (version 3)
-/// used by Firefox for automation. The implementation is based on analysis of the
-/// mozilla/geckodriver source code.
-///
-/// Key features:
-/// - TCP-based communication with Firefox
-/// - Context switching between 'content' and 'chrome' privilege levels
-/// - Script execution in privileged chrome context
-///
-/// See GECKODRIVER_ANALYSIS.md for detailed findings from geckodriver study.
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;

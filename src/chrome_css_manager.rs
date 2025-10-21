@@ -14,13 +14,7 @@ pub struct ChromeCSSManager {
 
 impl ChromeCSSManager {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let settings = MarionetteSettings::new();
-        let mut connection = MarionetteConnection::connect(&settings)?;
-
-        // Set context to chrome for privileged operations
-        // This allows access to XPCOM components like nsIStyleSheetService
-        // which is required for userChrome CSS manipulation.
-        // See GECKODRIVER_ANALYSIS.md for details on chrome context.
+        let mut connection = MarionetteConnection::connect(&MarionetteSettings::new())?;
         connection.set_context("chrome")?;
 
         Ok(ChromeCSSManager {
@@ -114,8 +108,6 @@ impl ChromeCSSManager {
         self.loaded_sheets.keys().cloned().collect()
     }
 
-    /// Register a chrome.manifest file to enable chrome:// URI loading in CSS
-    /// This allows CSS files to use @import 'mus-uc/<relative-path>' syntax
     pub fn register_chrome_manifest(
         &mut self,
         manifest_path: &Path,
