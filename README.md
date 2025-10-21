@@ -207,3 +207,4 @@ See [vitest-pool/README.md](vitest-pool/README.md) for detailed documentation on
 - [Chrome Manifest](docs/chrome-manifest.md)
 - [Screenshot](docs/screenshot.md)
 - [Testing](docs/testing.md)
+- [Vitest Integration](docs/vitest-integration.md) - Modern testing with Vitest v4

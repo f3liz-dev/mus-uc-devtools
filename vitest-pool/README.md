@@ -123,10 +123,27 @@ The pool:
 
 ## Browser Support
 
-Currently supports Firefox via Marionette protocol. Chrome/Chromium support could be added by:
-1. Implementing Chrome DevTools Protocol client
-2. Creating a `chrome-pool.js` with similar interface
-3. Adding a new project configuration in `vitest.config.js`
+### Firefox (Fully Implemented)
+Currently supports Firefox via Marionette protocol. This is fully functional and ready to use:
+- Requires Firefox running with `marionette.port=2828` in `about:config`
+- Full access to chrome context APIs
+- Screenshot capture of UI elements
+- Stable and tested
+
+### Chrome/Chromium (Basic Implementation)
+Basic Chrome support via Chrome DevTools Protocol is provided as a template:
+- Requires Chrome running with `--remote-debugging-port=9222`
+- Basic CDP client implementation (placeholder)
+- For production use, integrate with:
+  - `puppeteer` for full Chrome automation
+  - `chrome-remote-interface` for CDP protocol
+  - `playwright` for cross-browser support
+
+To extend Chrome support:
+1. Install CDP library: `npm install puppeteer` or `chrome-remote-interface`
+2. Update `chrome-pool.js` with proper CDP WebSocket client
+3. Implement Runtime.evaluate and Page.captureScreenshot commands
+4. Add authentication and target management
 
 ## Troubleshooting
 

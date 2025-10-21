@@ -1,7 +1,7 @@
 /**
  * Vitest configuration for mus-uc-devtools
  * 
- * This configuration sets up a custom pool for running tests in Firefox via Marionette
+ * This configuration sets up custom pools for running tests in Firefox and Chrome
  */
 import { defineConfig } from 'vitest/config';
 
@@ -16,6 +16,10 @@ export default defineConfig({
         // Custom options for the Firefox pool
         marionettePort: 2828,
       },
+      chromePool: {
+        // Custom options for the Chrome pool
+        cdpPort: 9222,
+      },
     },
     
     // Projects configuration
@@ -25,7 +29,15 @@ export default defineConfig({
           name: 'firefox-chrome-context',
           pool: './vitest-pool/firefox-pool.js',
           include: ['tests/vitest/**/*.firefox.test.js'],
-          exclude: ['**/*.node.test.js'],
+          exclude: ['**/*.node.test.js', '**/*.chrome.test.js'],
+        },
+      },
+      {
+        test: {
+          name: 'chrome-browser',
+          pool: './vitest-pool/chrome-pool.js',
+          include: ['tests/vitest/**/*.chrome.test.js'],
+          exclude: ['**/*.node.test.js', '**/*.firefox.test.js'],
         },
       },
       {
