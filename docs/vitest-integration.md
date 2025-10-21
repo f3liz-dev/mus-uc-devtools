@@ -2,161 +2,151 @@
 
 ## Overview
 
-This integration adds custom Vitest v4 pool support for running tests in browser environments, with a focus on Firefox chrome context testing for userChrome CSS development.
+This integration provides a custom Vitest v4 pool that runs tests **directly inside** Firefox's chrome context. Inspired by `@cloudflare/vitest-pool-workers`, this approach gives you native access to Firefox APIs without RPC overhead.
 
-## What's New
+## Key Innovation
 
-### Custom Pools
-- **firefox-pool**: Connects to Firefox via Marionette protocol for chrome context testing
-- **chrome-pool**: Basic template for Chrome DevTools Protocol integration (extensible)
+**Traditional browser testing:** Tests run in Node.js, send commands to browser via protocol  
+**This approach:** Tests run **inside** the browser with direct API access
 
-### Test Capabilities
-1. **Chrome Context Testing**: Access Firefox internals (Services, Components, XPCOM)
-2. **Visual Regression**: Capture screenshots of browser UI elements
-3. **CSS Testing**: Test userChrome CSS in live Firefox environment
-4. **JavaScript Execution**: Run privileged JavaScript in browser context
-
-## Architecture
-
+This means you can write:
+```javascript
+const version = Services.appinfo.version;  // Direct access!
 ```
-vitest.config.js
-  ├── firefox-chrome-context project
-  │   └── vitest-pool/firefox-pool.js
-  │       └── MarionetteClient (port 2828)
-  │           └── Firefox Browser
-  │
-  ├── chrome-browser project
-  │   └── vitest-pool/chrome-pool.js
-  │       └── CDPClient (port 9222)
-  │           └── Chrome Browser
-  │
-  └── node-tests project
-      └── Built-in threads pool
-          └── Node.js runtime
+
+Instead of:
+```javascript
+const version = await page.evaluate(() => Services.appinfo.version);  // RPC
 ```
 
 ## Quick Start
 
-### 1. Setup Firefox
-```bash
-# Open Firefox and navigate to about:config
-# Set: marionette.port = 2828
-# Restart Firefox
-```
+### 1. Prerequisites
 
-### 2. Run Tests
+- Firefox must be running
+- Set `marionette.port=2828` in Firefox's `about:config`
+- Restart Firefox after changing the setting
+
+### 2. Install & Run
+
 ```bash
-# Install dependencies (already done)
 npm install
 
-# Run all tests
+# Run tests
 npm run test:vitest
 
-# Run specific test suites
-npm run test:vitest:firefox  # Firefox chrome context tests
-npm run test:vitest:node     # Standard Node.js tests
-npm run test:vitest:chrome   # Chrome tests (requires implementation)
+# Watch mode (recommended for development)
+npm run test:vitest:watch
 ```
 
 ### 3. Write Your First Test
 
-Create `tests/vitest/my-test.firefox.test.js`:
+Create `tests/vitest/my-test.test.js`:
 
 ```javascript
 import { describe, it, expect } from 'vitest';
 
 describe('My Firefox Test', () => {
-  it('should access Firefox APIs', async ({ firefox }) => {
-    const result = await firefox.executeScript(`
-      return {
-        version: Services.appinfo.version,
-        platform: Services.appinfo.OS,
-      };
-    `);
+  it('should access Firefox APIs directly', () => {
+    // You're already running inside Firefox chrome context!
+    const window = Services.wm.getMostRecentWindow("navigator:browser");
+    const version = Services.appinfo.version;
     
-    expect(result.version).toBeTruthy();
-    expect(result.platform).toBeTruthy();
+    expect(version).toBeTruthy();
+    expect(window).toBeTruthy();
   });
 });
 ```
 
-## API Reference
+## Architecture
 
-### Test Context (Firefox)
-
-When running Firefox tests, your test receives a `firefox` object in the test context:
-
-#### `firefox.executeScript(script, args?)`
-
-Execute JavaScript in Firefox's chrome context.
-
-```javascript
-const result = await firefox.executeScript(`
-  const window = Services.wm.getMostRecentWindow("navigator:browser");
-  return { title: window.document.title };
-`);
+```
+Vitest (Node.js)  ←→  Marionette Protocol  ←→  Firefox Chrome Context
+                        (port 2828)              (Tests execute here)
+                                                 
+                                                 Available in tests:
+                                                 - Services.*
+                                                 - Components.*  
+                                                 - Cc, Ci, Cu
+                                                 - describe, it, expect
+                                                 - firefox.screenshot()
 ```
 
-With arguments:
+## Available APIs
+
+### Firefox Chrome Context APIs
+
+All standard Firefox chrome APIs are available:
+
 ```javascript
-const result = await firefox.executeScript(`
-  const selector = arguments[0];
-  const doc = Services.wm.getMostRecentWindow("navigator:browser").document;
-  const element = doc.querySelector(selector);
-  return { found: !!element };
-`, ['#nav-bar']);
+// Services
+Services.wm.getMostRecentWindow("navigator:browser")
+Services.appinfo.version
+Services.io.newURI(url)
+
+// XPCOM Components
+Cc["@mozilla.org/content/style-sheet-service;1"]
+  .getService(Ci.nsIStyleSheetService)
+
+// DOM Access
+const window = Services.wm.getMostRecentWindow("navigator:browser");
+const element = window.document.querySelector("#nav-bar");
 ```
 
-#### `firefox.screenshot(selector?)`
+### Vitest Test APIs
 
-Capture a screenshot of the browser window or a specific element.
+Standard Vitest functions:
 
 ```javascript
-// Full window
-const fullPage = await firefox.screenshot();
+describe(name, fn)  // Group tests
+it(name, fn)        // Define test  
+expect(value)       // Assertions
+```
 
-// Specific element
-const navbar = await firefox.screenshot('#nav-bar');
+### Helper APIs
+
+Custom helpers provided by the pool:
+
+```javascript
+// Screenshot full window
+const screenshot = firefox.screenshot();
+
+// Screenshot specific element
+const screenshot = firefox.screenshot('#nav-bar');
 
 // Returns: { dataURL: string, width: number, height: number }
 ```
 
-## Test Patterns
+## Common Patterns
 
 ### Testing userChrome CSS
 
 ```javascript
-import { describe, it, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
-describe('My CSS', () => {
-  let cssUri;
-
-  beforeAll(async ({ firefox }) => {
-    const result = await firefox.executeScript(`
-      const sss = Cc["@mozilla.org/content/style-sheet-service;1"]
-        .getService(Ci.nsIStyleSheetService);
-      
-      const css = "#nav-bar { background: red !important; }";
-      const uri = Services.io.newURI("data:text/css," + encodeURIComponent(css));
-      
-      sss.loadAndRegisterSheet(uri, sss.USER_SHEET);
-      return { uri: uri.spec };
-    `);
+describe('My CSS Theme', () => {
+  it('should load CSS', () => {
+    const sss = Cc["@mozilla.org/content/style-sheet-service;1"]
+      .getService(Ci.nsIStyleSheetService);
     
-    cssUri = result.uri;
-  });
-
-  afterAll(async ({ firefox }) => {
-    await firefox.executeScript(`
-      const sss = Cc["@mozilla.org/content/style-sheet-service;1"]
-        .getService(Ci.nsIStyleSheetService);
-      const uri = Services.io.newURI(arguments[0]);
-      sss.unregisterSheet(uri, sss.USER_SHEET);
-    `, [cssUri]);
-  });
-
-  it('should apply CSS', async ({ firefox }) => {
-    // Your test here
+    const css = `
+      #nav-bar {
+        background: linear-gradient(to bottom, #667eea, #764ba2) !important;
+      }
+    `;
+    
+    const uri = Services.io.newURI("data:text/css," + encodeURIComponent(css));
+    
+    // Load the CSS
+    if (!sss.sheetRegistered(uri, sss.USER_SHEET)) {
+      sss.loadAndRegisterSheet(uri, sss.USER_SHEET);
+    }
+    
+    // Verify it's loaded
+    expect(sss.sheetRegistered(uri, sss.USER_SHEET)).toBe(true);
+    
+    // Clean up
+    sss.unregisterSheet(uri, sss.USER_SHEET);
   });
 });
 ```
@@ -164,192 +154,200 @@ describe('My CSS', () => {
 ### Visual Regression Testing
 
 ```javascript
-import { describe, it } from 'vitest';
-import { writeFileSync } from 'fs';
-import { join } from 'path';
-
 describe('Visual Tests', () => {
-  it('should match baseline', async ({ firefox }) => {
-    const screenshot = await firefox.screenshot('#nav-bar');
+  it('should match navbar appearance', () => {
+    // Take screenshot
+    const screenshot = firefox.screenshot('#nav-bar');
     
-    // Save baseline (first run)
-    if (process.env.UPDATE_BASELINE) {
-      const buffer = Buffer.from(
-        screenshot.dataURL.replace(/^data:image\/png;base64,/, ''),
-        'base64'
-      );
-      writeFileSync('baseline-navbar.png', buffer);
-    }
+    expect(screenshot.dataURL).toBeTruthy();
+    expect(screenshot.width).toBeGreaterThan(0);
     
-    // Compare with baseline (subsequent runs)
-    // Use a library like pixelmatch or jest-image-snapshot
+    // In production: compare with baseline image
+    // await compareWithBaseline(screenshot, 'navbar-baseline.png');
   });
 });
 ```
 
-### Component Testing
+### Testing DOM Manipulation
 
 ```javascript
-describe('Browser UI Components', () => {
-  it('should find and interact with toolbar buttons', async ({ firefox }) => {
-    const result = await firefox.executeScript(`
-      const window = Services.wm.getMostRecentWindow("navigator:browser");
-      const doc = window.document;
-      
-      // Find all toolbar buttons
-      const buttons = doc.querySelectorAll('toolbar toolbarbutton');
-      
-      return {
-        count: buttons.length,
-        hasBackButton: !!doc.getElementById('back-button'),
-        hasForwardButton: !!doc.getElementById('forward-button'),
-      };
-    `);
+describe('DOM Tests', () => {
+  it('should find and query elements', () => {
+    const window = Services.wm.getMostRecentWindow("navigator:browser");
+    const doc = window.document;
     
-    expect(result.count).toBeGreaterThan(0);
-    expect(result.hasBackButton).toBe(true);
+    // Query elements
+    const navbar = doc.querySelector("#nav-bar");
+    const urlbar = doc.querySelector("#urlbar");
+    
+    expect(navbar).toBeTruthy();
+    expect(urlbar).toBeTruthy();
+    
+    // Check computed styles
+    const style = window.getComputedStyle(navbar);
+    expect(style.display).not.toBe('none');
   });
 });
 ```
 
-## Advanced Configuration
-
-### Custom Marionette Port
-
-Edit `vitest.config.js`:
+### Testing Firefox Services
 
 ```javascript
-poolOptions: {
-  firefoxPool: {
-    marionettePort: 3333, // Custom port
-  },
-}
-```
-
-### Custom Test Timeout
-
-```javascript
-test: {
-  testTimeout: 60000, // 60 seconds
-}
-```
-
-### Parallel Test Execution
-
-Currently, tests run sequentially within each pool. For parallel execution:
-
-1. Use multiple Firefox profiles
-2. Assign different Marionette ports
-3. Create multiple pool instances
-
-```javascript
-projects: [
-  {
-    test: {
-      name: 'firefox-profile-1',
-      pool: './vitest-pool/firefox-pool.js',
-      poolOptions: { firefoxPool: { marionettePort: 2828 } },
-      include: ['tests/suite1/**/*.firefox.test.js'],
-    },
-  },
-  {
-    test: {
-      name: 'firefox-profile-2',
-      pool: './vitest-pool/firefox-pool.js',
-      poolOptions: { firefoxPool: { marionettePort: 2829 } },
-      include: ['tests/suite2/**/*.firefox.test.js'],
-    },
-  },
-]
-```
-
-## Extending Chrome Support
-
-To fully implement Chrome support:
-
-### Option 1: Using Puppeteer
-
-```bash
-npm install puppeteer
-```
-
-Update `chrome-pool.js`:
-
-```javascript
-const puppeteer = require('puppeteer');
-
-class ChromePool {
-  async initialize() {
-    this.browser = await puppeteer.launch({
-      headless: false,
-      args: ['--remote-debugging-port=9222']
-    });
-    this.page = await this.browser.newPage();
-  }
+describe('Firefox Services', () => {
+  it('should access application info', () => {
+    const appInfo = Services.appinfo;
+    
+    expect(appInfo.version).toBeTruthy();
+    expect(appInfo.platformVersion).toBeTruthy();
+    expect(appInfo.name).toBe('Firefox');
+  });
   
-  async executeScript(script, args) {
-    return await this.page.evaluate(script, ...args);
-  }
-  
-  async screenshot(selector) {
-    if (selector) {
-      const element = await this.page.$(selector);
-      return await element.screenshot({ encoding: 'base64' });
-    }
-    return await this.page.screenshot({ encoding: 'base64' });
-  }
-}
+  it('should access window manager', () => {
+    const window = Services.wm.getMostRecentWindow("navigator:browser");
+    
+    expect(window).toBeTruthy();
+    expect(window.location.href).toContain('chrome://browser');
+  });
+});
 ```
 
-### Option 2: Using Chrome Remote Interface
+## Configuration
 
-```bash
-npm install chrome-remote-interface
+### vitest.config.js
+
+```javascript
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    testTimeout: 30000,
+    pool: './vitest-pool/firefox-pool.js',
+    poolOptions: {
+      firefox: {
+        marionettePort: 2828,  // Custom port if needed
+      },
+    },
+    include: ['tests/vitest/**/*.test.js'],
+  },
+});
 ```
 
-Implement CDP client using WebSocket protocol.
+## Limitations
+
+- **Sequential execution**: Tests run one file at a time
+- **No beforeAll/afterAll**: Lifecycle hooks not yet fully supported
+- **Error stacks**: May be less detailed than Node.js stack traces
+- **Vitest features**: Some advanced features may not work in Firefox context
 
 ## Comparison with Other Tools
 
-| Feature | mus-uc-devtools + Vitest | Puppeteer | Playwright | Selenium |
-|---------|-------------------------|-----------|------------|----------|
-| Firefox Chrome Context | ✅ Full access | ❌ No | ❌ No | ❌ No |
-| userChrome CSS Testing | ✅ Native | ❌ No | ❌ No | ❌ No |
-| Chrome/Firefox Browser | ✅ Both | ✅ Chrome | ✅ Both | ✅ Both |
-| Modern Test Framework | ✅ Vitest v4 | ⚠️ Custom | ⚠️ Custom | ⚠️ Custom |
-| Visual Regression | ✅ Built-in | ✅ Via plugins | ✅ Via plugins | ✅ Via plugins |
+| Feature | Puppeteer/Playwright | This Integration |
+|---------|---------------------|------------------|
+| Test Location | Node.js (RPC to browser) | Inside Firefox |
+| API Access | Via evaluate() | Direct |
+| Chrome Context | ❌ No access | ✅ Full access |
+| userChrome CSS | ❌ Cannot test | ✅ Native support |
+| Performance | RPC overhead | Native speed |
+| Complexity | Higher (protocol) | Lower (direct) |
 
 ## Troubleshooting
 
-### "Could not connect to Firefox"
+### Connection Issues
+
+**"Could not connect to Firefox"**
 - Ensure Firefox is running
-- Verify `marionette.port=2828` in about:config
+- Check `marionette.port=2828` in about:config
+- Try restarting Firefox
 - Check firewall settings
 
-### "Command timeout"
-- Increase `testTimeout` in config
-- Check if Firefox is responsive
-- Verify script syntax is valid
+### API Errors
 
-### Tests are slow
-- Use `watch` mode for development
-- Run specific test suites
-- Consider parallel execution with multiple profiles
+**"Services is not defined"**
+- Test is not running in Firefox chrome context
+- Check Marionette connection
+- Verify pool configuration
 
-## Future Roadmap
+### Screenshot Issues
 
-- [ ] Auto-start/stop Firefox instances
-- [ ] Built-in visual regression comparison
-- [ ] Code coverage for chrome context
-- [ ] Integration with CI/CD pipelines
-- [ ] Multi-profile parallel execution
-- [ ] Performance benchmarking utilities
-- [ ] Full Chrome CDP implementation
-- [ ] Cross-browser testing utilities
+**Screenshots failing or empty**
+- Firefox window must be visible (not minimized)
+- Check element selector is correct
+- Verify Firefox window has focus
+
+## Advanced Topics
+
+### Manual Test Execution
+
+```javascript
+// The pool injects these globals:
+// - describe, it, expect (Vitest)
+// - Services, Components, Cc, Ci, Cu (Firefox)
+// - firefox.screenshot() (helper)
+
+describe('Advanced Test', () => {
+  it('can use all Firefox APIs', () => {
+    // Direct access to everything!
+    const chromeRegistry = Cc["@mozilla.org/chrome/chrome-registry;1"]
+      .getService(Ci.nsIChromeRegistry);
+    
+    expect(chromeRegistry).toBeTruthy();
+  });
+});
+```
+
+### Custom Assertions
+
+```javascript
+const expectElement = (selector) => {
+  const window = Services.wm.getMostRecentWindow("navigator:browser");
+  const element = window.document.querySelector(selector);
+  
+  return {
+    toExist: () => expect(element).toBeTruthy(),
+    toBeVisible: () => {
+      const style = window.getComputedStyle(element);
+      expect(style.display).not.toBe('none');
+      expect(style.visibility).not.toBe('hidden');
+    },
+  };
+};
+
+// Usage
+it('should have visible navbar', () => {
+  expectElement('#nav-bar').toExist();
+  expectElement('#nav-bar').toBeVisible();
+});
+```
+
+## Best Practices
+
+1. **Keep tests focused**: Test one thing per `it()` block
+2. **Clean up resources**: Unregister CSS, close tabs, etc.
+3. **Use descriptive names**: Make test names clear and specific
+4. **Avoid side effects**: Tests should not affect each other
+5. **Check Firefox state**: Verify Firefox is in expected state before testing
 
 ## Resources
 
 - [Vitest Documentation](https://vitest.dev/)
-- [Firefox Marionette Protocol](https://firefox-source-docs.mozilla.org/testing/marionette/Protocol.html)
-- [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/)
+- [Firefox Marionette Protocol](https://firefox-source-docs.mozilla.org/testing/marionette/)
+- [XPCOM Reference](https://developer.mozilla.org/en-US/docs/Mozilla/Tech/XPCOM)
+- [Firefox Services](https://developer.mozilla.org/en-US/docs/Mozilla/JavaScript_code_modules/Services.jsm)
 - [userChrome CSS](https://www.userchrome.org/)
+
+## Getting Help
+
+If you encounter issues:
+
+1. Check Firefox console for errors
+2. Verify Marionette connection (port 2828)
+3. Review test syntax for typos
+4. Check documentation and examples
+5. Open an issue with error details
+
+## Next Steps
+
+1. Write tests for your userChrome CSS
+2. Set up visual regression baselines
+3. Integrate with CI/CD pipeline
+4. Share your testing patterns with the community
