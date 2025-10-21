@@ -5,6 +5,18 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::Path;
 
+fn read_input(file: Option<&str>, prompt: &str) -> Result<String, Box<dyn std::error::Error>> {
+    match file {
+        Some(path) => fs::read_to_string(path).map_err(Into::into),
+        None => {
+            println!("{}", prompt);
+            let mut buffer = String::new();
+            io::stdin().read_to_string(&mut buffer)?;
+            Ok(buffer)
+        }
+    }
+}
+
 pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
     let matches = App::new("mus-uc-devtools")
         .version(crate_version!())
@@ -138,17 +150,8 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         ("load", Some(sub_matches)) => {
-            let css_content = if let Some(file_path) = sub_matches.value_of("file") {
-                fs::read_to_string(file_path)?
-            } else {
-                println!("Enter CSS content (Ctrl+D to finish):");
-                let mut buffer = String::new();
-                io::stdin().read_to_string(&mut buffer)?;
-                buffer
-            };
-
-            let id = sub_matches.value_of("id");
-            let sheet_id = manager.load_css(&css_content, id)?;
+            let css = read_input(sub_matches.value_of("file"), "Enter CSS content (Ctrl+D to finish):")?;
+            let sheet_id = manager.load_css(&css, sub_matches.value_of("id"))?;
             println!("CSS loaded with ID: {}", sheet_id);
         }
 
@@ -162,11 +165,12 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
 
         ("unload", Some(sub_matches)) => {
             let id = sub_matches.value_of("id").unwrap();
-            if manager.unload_css(id)? {
-                println!("CSS unloaded: {}", id);
+            let msg = if manager.unload_css(id)? {
+                format!("CSS unloaded: {}", id)
             } else {
-                println!("Failed to unload CSS: {}", id);
-            }
+                format!("Failed to unload CSS: {}", id)
+            };
+            println!("{}", msg);
         }
 
         ("clear", Some(_)) => {
@@ -191,61 +195,38 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         ("screenshot", Some(sub_matches)) => {
-            let output_path = sub_matches.value_of("output").unwrap_or("screenshot.png");
+            let output = sub_matches.value_of("output").unwrap_or("screenshot.png");
             let selector = sub_matches.value_of("selector");
 
-            // Create a new connection for screenshot (reuses same marionette settings)
-            let settings = MarionetteSettings::new();
-            let connection = MarionetteConnection::connect(&settings)?;
+            let connection = MarionetteConnection::connect(&MarionetteSettings::new())?;
             let mut screenshot_manager = ScreenshotManager::new(connection)?;
+            screenshot_manager.screenshot_to_file(Path::new(output), selector)?;
 
-            screenshot_manager.screenshot_to_file(Path::new(output_path), selector)?;
-
-            if let Some(sel) = selector {
-                println!("Screenshot of element '{}' saved to: {}", sel, output_path);
-            } else {
-                println!("Full-screen screenshot saved to: {}", output_path);
+            match selector {
+                Some(sel) => println!("Screenshot of element '{}' saved to: {}", sel, output),
+                None => println!("Full-screen screenshot saved to: {}", output),
             }
         }
 
         ("exec", Some(sub_matches)) => {
-            let js_content = if let Some(file_path) = sub_matches.value_of("file") {
-                fs::read_to_string(file_path)?
-            } else {
-                println!("Enter JavaScript code (Ctrl+D to finish):");
-                let mut buffer = String::new();
-                io::stdin().read_to_string(&mut buffer)?;
-                buffer
-            };
-
-            // Validate that we have some JavaScript to execute
-            if js_content.trim().is_empty() {
-                return Err("No JavaScript code provided. Use -f to specify a file or provide code via stdin.".into());
+            let js = read_input(sub_matches.value_of("file"), "Enter JavaScript code (Ctrl+D to finish):")?;
+            if js.trim().is_empty() {
+                return Err("No JavaScript code provided".into());
             }
 
-            // Parse arguments if provided
-            let args = if let Some(args_str) = sub_matches.value_of("args") {
-                let parsed: serde_json::Value = serde_json::from_str(args_str)?;
-                if let serde_json::Value::Array(arr) = parsed {
-                    Some(arr)
-                } else {
-                    return Err("Arguments must be a JSON array (e.g., '[\"arg1\", 42]')".into());
-                }
-            } else {
-                None
-            };
+            let args = sub_matches
+                .value_of("args")
+                .map(|s| -> Result<Vec<serde_json::Value>, Box<dyn std::error::Error>> {
+                    match serde_json::from_str(s)? {
+                        serde_json::Value::Array(arr) => Ok(arr),
+                        _ => Err("Arguments must be a JSON array".into()),
+                    }
+                })
+                .transpose()?;
 
-            // Create a new connection for script execution
-            let settings = MarionetteSettings::new();
-            let mut connection = MarionetteConnection::connect(&settings)?;
-
-            // Switch to chrome context
+            let mut connection = MarionetteConnection::connect(&MarionetteSettings::new())?;
             connection.set_context("chrome")?;
-
-            // Execute the script
-            let result = connection.execute_script(&js_content, args)?;
-
-            // Print the result
+            let result = connection.execute_script(&js, args)?;
             println!("{}", serde_json::to_string_pretty(&result)?);
         }
 
@@ -257,11 +238,25 @@ pub fn run_cli() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn read_css_lines() -> Result<String, Box<dyn std::error::Error>> {
+    println!("Enter CSS content (empty line to finish):");
+    let mut lines = Vec::new();
+    loop {
+        let mut line = String::new();
+        io::stdin().read_line(&mut line)?;
+        if line.trim().is_empty() {
+            break;
+        }
+        lines.push(line.trim_end().to_string());
+    }
+    Ok(lines.join("\n"))
+}
+
 pub fn run_interactive_mode(
     manager: &mut ChromeCSSManager,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("Firefox Chrome CSS Interactive Mode");
-    println!("Commands: load [filepath] [id] [-b], unload <id>, clear, list, quit");
+    println!("Commands: load [filepath] [id], unload <id>, clear, list, quit");
 
     loop {
         print!("> ");
@@ -269,69 +264,22 @@ pub fn run_interactive_mode(
 
         let mut input = String::new();
         io::stdin().read_line(&mut input)?;
-        let input = input.trim();
-
-        let parts: Vec<&str> = input.split_whitespace().collect();
+        let parts: Vec<&str> = input.trim().split_whitespace().collect();
         if parts.is_empty() {
             continue;
         }
 
         match parts[0] {
             "load" => {
-                let css_content = if parts.len() >= 2 {
-                    // Check if second argument is a file path
-                    let potential_path = parts[1];
-                    if Path::new(potential_path).exists() {
-                        match fs::read_to_string(potential_path) {
-                            Ok(content) => {
-                                println!("Loading CSS from file: {}", potential_path);
-                                content
-                            }
-                            Err(e) => {
-                                println!("Error reading file {}: {}", potential_path, e);
-                                continue;
-                            }
-                        }
-                    } else {
-                        println!(
-                            "File not found: {}. Enter CSS content manually:",
-                            potential_path
-                        );
-                        let mut css_lines = Vec::new();
-                        println!("Enter CSS content (empty line to finish):");
-                        loop {
-                            let mut line = String::new();
-                            io::stdin().read_line(&mut line)?;
-                            let line = line.trim_end();
-                            if line.is_empty() {
-                                break;
-                            }
-                            css_lines.push(line.to_string());
-                        }
-                        css_lines.join("\n")
-                    }
+                let css = if parts.len() >= 2 && Path::new(parts[1]).exists() {
+                    fs::read_to_string(parts[1])?
                 } else {
-                    println!("Enter CSS content (empty line to finish):");
-                    let mut css_lines = Vec::new();
-                    loop {
-                        let mut line = String::new();
-                        io::stdin().read_line(&mut line)?;
-                        let line = line.trim_end();
-                        if line.is_empty() {
-                            break;
-                        }
-                        css_lines.push(line.to_string());
-                    }
-                    css_lines.join("\n")
+                    read_css_lines()?
                 };
 
-                if !css_content.is_empty() {
-                    let custom_id = if parts.len() >= 3 {
-                        Some(parts[2])
-                    } else {
-                        None
-                    };
-                    match manager.load_css(&css_content, custom_id) {
+                if !css.is_empty() {
+                    let id = parts.get(2).copied();
+                    match manager.load_css(&css, id) {
                         Ok(id) => println!("CSS loaded with ID: {}", id),
                         Err(e) => println!("Error loading CSS: {}", e),
                     }
@@ -374,12 +322,9 @@ pub fn run_interactive_mode(
 
             _ => {
                 println!("Unknown command: {}", parts[0]);
-                println!(
-                    "Available commands: load [filepath] [id], unload <id>, clear, list, quit"
-                );
+                println!("Available commands: load [filepath] [id], unload <id>, clear, list, quit");
             }
         }
     }
-
     Ok(())
 }
