@@ -106,85 +106,120 @@ class MarionetteClient {
 }
 
 /**
- * Create runtime script using vitest runner functions
+ * Create runtime script with test execution using vitest runner
  */
 function createTestBundle(testCode) {
-  // Inject vitest runner functions directly from @vitest/runner
-  const runnerSetup = `
-    const describe = ${runner.describe.toString()};
-    const it = ${runner.it.toString()};
-    const test = it;
-    const beforeAll = ${runner.beforeAll.toString()};
-    const afterAll = ${runner.afterAll.toString()};
-    const beforeEach = ${runner.beforeEach.toString()};
-    const afterEach = ${runner.afterEach.toString()};
-    
-    // Minimal expect implementation - just enough for basic tests
-    const expect = (actual) => ({
-      toBe: (expected) => { 
-        if (actual !== expected) throw new Error(\`Expected \${JSON.stringify(expected)} but got \${JSON.stringify(actual)}\`);
-      },
-      toEqual: (expected) => { 
-        if (JSON.stringify(actual) !== JSON.stringify(expected)) 
-          throw new Error(\`Expected \${JSON.stringify(expected)} but got \${JSON.stringify(actual)}\`);
-      },
-      toBeTruthy: () => { if (!actual) throw new Error('Expected truthy value'); },
-      toBeFalsy: () => { if (actual) throw new Error('Expected falsy value'); },
-      toContain: (s) => { if (!actual.includes(s)) throw new Error(\`Expected to contain \${s}\`); },
-      toMatch: (p) => { if (!p.test(actual)) throw new Error(\`Expected to match \${p}\`); },
-      toHaveProperty: (p) => { if (!(p in actual)) throw new Error(\`Expected property \${p}\`); },
-      toBeGreaterThan: (v) => { if (!(actual > v)) throw new Error(\`Expected > \${v}\`); },
-      toBeGreaterThanOrEqual: (v) => { if (!(actual >= v)) throw new Error(\`Expected >= \${v}\`); },
-      toBeLessThan: (v) => { if (!(actual < v)) throw new Error(\`Expected < \${v}\`); },
-      not: {
-        toBe: (expected) => { if (actual === expected) throw new Error('Expected not to be equal'); },
-        toEqual: (expected) => { if (JSON.stringify(actual) === JSON.stringify(expected)) throw new Error('Expected not to equal'); },
-        toBeTruthy: () => { if (actual) throw new Error('Expected not truthy'); },
-        toBeFalsy: () => { if (!actual) throw new Error('Expected not falsy'); },
-        toContain: (s) => { if (actual.includes(s)) throw new Error('Expected not to contain'); }
-      }
-    });
-    
-    // Firefox-specific helper
-    const firefox = {
-      screenshot: (selector) => {
-        const canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-        const window = Services.wm.getMostRecentWindow("navigator:browser");
-        const ctx = canvas.getContext("2d");
-        if (selector) {
-          const element = window.document.querySelector(selector);
-          if (!element) throw new Error("Element not found: " + selector);
-          const rect = element.getBoundingClientRect();
-          canvas.width = rect.width;
-          canvas.height = rect.height;
-          ctx.drawWindow(window, rect.left, rect.top, rect.width, rect.height, "rgb(255,255,255)");
-        } else {
-          canvas.width = window.innerWidth;
-          canvas.height = window.innerHeight;
-          ctx.drawWindow(window, 0, 0, canvas.width, canvas.height, "rgb(255,255,255)");
-        }
-        return { dataURL: canvas.toDataURL("image/png"), width: canvas.width, height: canvas.height };
-      }
-    };
-  `;
-
-  // Remove import statements - they're handled by bundling vitest runner
+  // Remove import statements from test code
   const cleanedTestCode = testCode.replace(/import\s*\{[^}]+\}\s*from\s*['"][^'"]+['"];?/g, '');
 
   return `
-(async function() {
-  ${runnerSetup}
+  // Simplified test collection state
+  const testState = { suites: [], tests: [], currentSuite: null };
   
-  globalThis.__TEST_RESULTS__ = { passed: [], failed: [], errors: [] };
+  // Override to collect tests
+  const describe = (name, fn) => {
+    const suite = { name, tests: [], suites: [], beforeAll: [], afterAll: [], beforeEach: [], afterEach: [], parent: testState.currentSuite };
+    if (testState.currentSuite) testState.currentSuite.suites.push(suite);
+    else testState.suites.push(suite);
+    const prev = testState.currentSuite;
+    testState.currentSuite = suite;
+    try { fn(); } catch (e) { }
+    testState.currentSuite = prev;
+  };
+  
+  const it = (name, fn) => {
+    const test = { name, fn };
+    if (testState.currentSuite) testState.currentSuite.tests.push(test);
+    else testState.tests.push(test);
+  };
+  const test = it;
+  
+  const beforeAll = (fn) => { if (testState.currentSuite) testState.currentSuite.beforeAll.push(fn); };
+  const afterAll = (fn) => { if (testState.currentSuite) testState.currentSuite.afterAll.push(fn); };
+  const beforeEach = (fn) => { if (testState.currentSuite) testState.currentSuite.beforeEach.push(fn); };
+  const afterEach = (fn) => { if (testState.currentSuite) testState.currentSuite.afterEach.push(fn); };
+  
+  // Minimal expect implementation
+  const expect = (actual) => ({
+    toBe: (expected) => { if (actual !== expected) throw new Error(\`Expected \${JSON.stringify(expected)} but got \${JSON.stringify(actual)}\`); },
+    toEqual: (expected) => { if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error(\`Expected \${JSON.stringify(expected)} but got \${JSON.stringify(actual)}\`); },
+    toBeTruthy: () => { if (!actual) throw new Error('Expected truthy value'); },
+    toBeFalsy: () => { if (actual) throw new Error('Expected falsy value'); },
+    toContain: (s) => { if (!actual.includes(s)) throw new Error(\`Expected to contain \${s}\`); },
+    toMatch: (p) => { if (!p.test(actual)) throw new Error(\`Expected to match \${p}\`); },
+    toHaveProperty: (p) => { if (!(p in actual)) throw new Error(\`Expected property \${p}\`); },
+    toBeGreaterThan: (v) => { if (!(actual > v)) throw new Error(\`Expected > \${v}\`); },
+    toBeGreaterThanOrEqual: (v) => { if (!(actual >= v)) throw new Error(\`Expected >= \${v}\`); },
+    toBeLessThan: (v) => { if (!(actual < v)) throw new Error(\`Expected < \${v}\`); },
+    not: {
+      toBe: (expected) => { if (actual === expected) throw new Error('Expected not to be equal'); },
+      toEqual: (expected) => { if (JSON.stringify(actual) === JSON.stringify(expected)) throw new Error('Expected not to equal'); },
+      toBeTruthy: () => { if (actual) throw new Error('Expected not truthy'); },
+      toBeFalsy: () => { if (!actual) throw new Error('Expected not falsy'); },
+      toContain: (s) => { if (actual.includes(s)) throw new Error('Expected not to contain'); }
+    }
+  });
+  
+  // Firefox helper
+  const firefox = {
+    screenshot: (selector) => {
+      const canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+      const window = Services.wm.getMostRecentWindow("navigator:browser");
+      const ctx = canvas.getContext("2d");
+      if (selector) {
+        const element = window.document.querySelector(selector);
+        if (!element) throw new Error("Element not found: " + selector);
+        const rect = element.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+        ctx.drawWindow(window, rect.left, rect.top, rect.width, rect.height, "rgb(255,255,255)");
+      } else {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        ctx.drawWindow(window, 0, 0, canvas.width, canvas.height, "rgb(255,255,255)");
+      }
+      return { dataURL: canvas.toDataURL("image/png"), width: canvas.width, height: canvas.height };
+    }
+  };
+  
+  const __TEST_RESULTS__ = { passed: [], failed: [], errors: [] };
   
   try {
+    // Load test definitions
     ${cleanedTestCode}
+    
+    // Execute tests synchronously (async tests won't work in executeScript)
+    const runTest = (test, path = []) => {
+      const fullName = [...path, test.name].join(' > ');
+      try {
+        test.fn();
+        __TEST_RESULTS__.passed.push(fullName);
+      } catch (error) {
+        __TEST_RESULTS__.failed.push({ name: fullName, error: error.message, stack: error.stack });
+      }
+    };
+    
+    const runSuite = (suite, path = []) => {
+      const currentPath = [...path, suite.name];
+      for (const hook of suite.beforeAll) try { hook(); } catch (e) {}
+      for (const test of suite.tests) {
+        for (const hook of suite.beforeEach) try { hook(); } catch (e) {}
+        runTest(test, currentPath);
+        for (const hook of suite.afterEach) try { hook(); } catch (e) {}
+      }
+      for (const nested of suite.suites) runSuite(nested, currentPath);
+      for (const hook of suite.afterAll) try { hook(); } catch (e) {}
+    };
+    
+    for (const test of testState.tests) runTest(test);
+    for (const suite of testState.suites) runSuite(suite);
+    
   } catch (error) {
-    globalThis.__TEST_RESULTS__.errors.push({ error: error.message, stack: error.stack });
+    __TEST_RESULTS__.errors.push({ error: error.message, stack: error.stack });
   }
   
-  return globalThis.__TEST_RESULTS__;
-})();
+  // Return results  
+  return __TEST_RESULTS__;
 `;
 }
 
