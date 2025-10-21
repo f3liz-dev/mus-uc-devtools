@@ -1,0 +1,79 @@
+name: Vitest Integration Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vitest:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install Node.js dependencies
+        run: npm ci
+      
+      - name: Start Firefox with Marionette
+        run: |
+          # Create Firefox profile directory
+          mkdir -p /tmp/firefox-test-profile
+          
+          # Create prefs.js with marionette enabled
+          cat > /tmp/firefox-test-profile/prefs.js << 'EOF'
+          user_pref("marionette.port", 2828);
+          user_pref("marionette.enabled", true);
+          user_pref("marionette.defaultPrefs.enabled", true);
+          user_pref("browser.shell.checkDefaultBrowser", false);
+          user_pref("browser.startup.homepage_override.mstone", "ignore");
+          user_pref("startup.homepage_welcome_url", "about:blank");
+          user_pref("startup.homepage_welcome_url.additional", "");
+          user_pref("app.update.enabled", false);
+          user_pref("app.update.auto", false);
+          user_pref("toolkit.telemetry.enabled", false);
+          EOF
+          
+          # Start Firefox in background
+          firefox --headless --marionette --no-remote --remote-allow-system-access --profile /tmp/firefox-test-profile &
+          FIREFOX_PID=$!
+          echo "FIREFOX_PID=$FIREFOX_PID" >> $GITHUB_ENV
+          
+          # Wait for marionette to be ready
+          echo "Waiting for Firefox to start..."
+          for i in {1..30}; do
+            if nc -z localhost 2828; then
+              echo "Firefox is ready on port 2828"
+              break
+            fi
+            sleep 1
+          done
+          
+          # Give it a bit more time to fully initialize
+          sleep 2
+      
+      - name: Run Vitest tests
+        run: npm run test:vitest
+        timeout-minutes: 5
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          # Kill Firefox process
+          if [ ! -z "$FIREFOX_PID" ]; then
+            kill $FIREFOX_PID 2>/dev/null || true
+          fi
+          # Also kill any remaining Firefox processes
+          pkill -f firefox || true

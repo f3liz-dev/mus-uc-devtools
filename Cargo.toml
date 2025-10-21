@@ -22,3 +22,9 @@ notify = "8.2"
 [[bin]]
 name = "mus-uc"
 path = "src/main.rs"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O"]
+
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = false

@@ -11,6 +11,7 @@
     "test:vitest": "vitest",
     "test:vitest:watch": "vitest --watch",
     "build": "cargo build --release --target wasm32-wasip1 && mkdir -p bin && cp target/wasm32-wasip1/release/mus-uc.wasm bin/",
+    "build:wasm-pack": "wasm-pack build --target nodejs --out-dir pkg --release",
     "prepublishOnly": "npm run build"
   },
   "files": [
