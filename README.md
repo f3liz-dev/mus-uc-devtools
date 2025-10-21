@@ -205,3 +205,12 @@ See [vitest-pool/README.md](vitest-pool/README.md) for detailed documentation on
 - [Screenshot](docs/screenshot.md)
 - [Testing](docs/testing.md)
 - [Vitest Integration](docs/vitest-integration.md) - Modern testing with Vitest v4
+
+## Credits
+
+This project uses:
+- [Vitest](https://vitest.dev/) - Modern testing framework
+- [Marionette Protocol](https://firefox-source-docs.mozilla.org/testing/marionette/) - Firefox automation
+- [Firefox](https://www.mozilla.org/firefox/) - Web browser
+
+Vitest pool inspired by [@cloudflare/vitest-pool-workers](https://github.com/cloudflare/workers-sdk/tree/main/packages/vitest-pool-workers)
