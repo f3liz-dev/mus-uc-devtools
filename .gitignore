@@ -35,3 +35,6 @@ screenshots/
 
 # Build output for npm publishing (generated during prepublishOnly)
 bin/
+
+# wasm-pack output
+pkg/
