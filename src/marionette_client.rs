@@ -74,32 +74,24 @@ impl MarionetteClient {
         params: Value,
     ) -> Result<Value, Box<dyn std::error::Error>> {
         self.message_id += 1;
-        let msg_id = self.message_id;
 
         let msg = MarionetteMessage {
-            id: Some(msg_id),
+            id: Some(self.message_id),
             name: name.to_string(),
             parameters: params,
         };
 
         let msg_str = serde_json::to_string(&msg)?;
-        let msg_bytes = format!("{}:{}", msg_str.len(), msg_str);
-
-        self.stream.write_all(msg_bytes.as_bytes())?;
+        write!(self.stream, "{}:{}", msg_str.len(), msg_str)?;
         self.stream.flush()?;
 
-        // Read response
         let mut reader = BufReader::new(self.stream.try_clone()?);
         let mut response_line = String::new();
         reader.read_line(&mut response_line)?;
 
-        // Parse response - format is "len:json"
         let colon_pos = response_line.find(':').ok_or("Invalid response format")?;
-        let json_str = &response_line[colon_pos + 1..];
+        let response: Value = serde_json::from_str(&response_line[colon_pos + 1..])?;
 
-        let response: Value = serde_json::from_str(json_str)?;
-
-        // Check for errors
         if let Some(error) = response.get("error") {
             return Err(format!("Marionette error: {}", error).into());
         }
@@ -107,17 +99,8 @@ impl MarionetteClient {
         Ok(response.get("value").unwrap_or(&Value::Null).clone())
     }
 
-    /// Set the execution context for subsequent commands
-    ///
-    /// Context can be:
-    /// - "content": Regular web page context (default)
-    /// - "chrome": Privileged browser context with XPCOM access
-    ///
-    /// This is critical for executing scripts that need access to Firefox internals
-    /// like nsIStyleSheetService for userChrome CSS manipulation.
     pub fn set_context(&mut self, context: &str) -> Result<(), Box<dyn std::error::Error>> {
-        let params = json!({ "value": context });
-        self.send_command("Marionette:SetContext", params)?;
+        self.send_command("Marionette:SetContext", json!({ "value": context }))?;
         Ok(())
     }
 
