@@ -32,6 +32,7 @@ node_modules/
 
 # Vitest
 screenshots/
+.vitest-temp/
 
 # Build output for npm publishing (generated during prepublishOnly)
 bin/

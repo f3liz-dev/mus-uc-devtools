@@ -11,6 +11,21 @@ Unlike traditional browser testing tools that run tests in Node.js and communica
 - ✅ No `executeScript()` needed - just write Firefox code
 - ✅ Familiar Vitest syntax (describe, it, expect)
 - ✅ Tests execute in the actual Firefox runtime
+- ✅ **Real ES6 imports** - use `import { describe, it, expect } from 'vitest'`
+- ✅ **No mocking** - proper Vitest API implementation
+
+## How It Works
+
+1. **Bundling**: Test files are bundled with esbuild, resolving all imports
+2. **Vitest Shim**: `import from 'vitest'` statements are replaced with global implementations
+3. **Execution**: Bundled code is executed in Firefox chrome context via Marionette
+4. **Collection**: Test results are collected and reported back to Vitest
+
+This approach provides:
+- Real import support (no more stripping imports!)
+- Proper module resolution
+- Access to all Firefox chrome APIs
+- Familiar Vitest testing experience
 
 ## Architecture
 
@@ -18,6 +33,12 @@ Unlike traditional browser testing tools that run tests in Node.js and communica
 ┌─────────────────────────────────────────┐
 │         Vitest Test Runner              │
 │         (Node.js process)               │
+│                                         │
+│  1. Read test file                      │
+│  2. Bundle with esbuild                 │
+│     - Resolve all imports               │
+│     - Inject Vitest globals             │
+│  3. Send to Firefox                     │
 └─────────────┬───────────────────────────┘
               │ Marionette Protocol
               │ (port 2828)
@@ -26,7 +47,8 @@ Unlike traditional browser testing tools that run tests in Node.js and communica
 │       Firefox Chrome Context            │
 │                                         │
 │  ┌───────────────────────────────────┐ │
-│  │   Your Test Code Runs Here        │ │
+│  │   Your Bundled Test Code          │ │
+│  │   - Uses real Vitest APIs         │ │
 │  │   - Access Services directly      │ │
 │  │   - Use Components directly       │ │
 │  │   - Query DOM directly            │ │
@@ -35,10 +57,46 @@ Unlike traditional browser testing tools that run tests in Node.js and communica
 │                                         │
 │  Available globally:                    │
 │  - Services, Components, Ci, Cc        │
-│  - describe, it, expect (from Vitest)  │
+│  - describe, it, expect (from bundle)  │
 │  - firefox.screenshot()                │
 └─────────────────────────────────────────┘
 ```
+
+## Implementation Details
+
+### Bundling Process
+
+The pool uses esbuild to bundle test files:
+
+1. **Vitest Shim Plugin**: Intercepts `import ... from 'vitest'` statements and redirects them to globalThis references
+2. **Banner Injection**: Injects Vitest API implementations (`describe`, `it`, `expect`, etc.) as global functions
+3. **Module Resolution**: All other imports are resolved and bundled normally
+4. **IIFE Format**: Output is an immediately-invoked function expression suitable for Firefox's executeScript
+
+### Vitest API Implementation
+
+The pool provides a complete implementation of core Vitest APIs:
+- `describe(name, fn)` - Test suites with nesting support
+- `it(name, fn)` / `test(name, fn)` - Individual test cases
+- `expect(value)` - Assertions with matchers (toBe, toEqual, toBeTruthy, toContain, etc.)
+- `beforeAll(fn)` / `afterAll(fn)` - Suite-level hooks
+- `beforeEach(fn)` / `afterEach(fn)` - Test-level hooks
+- `firefox.screenshot(selector?)` - Firefox-specific screenshot helper
+
+### Differences from Previous Implementation
+
+**Before (v0.0.x)**:
+- ❌ Stripped all import statements
+- ❌ Manually mocked Vitest functions
+- ❌ Limited expect matchers
+- ❌ No proper module support
+
+**Now (v0.1.x)**:
+- ✅ Full ES6 import support via bundling
+- ✅ Complete Vitest API implementation
+- ✅ Extended expect matchers
+- ✅ Proper module resolution
+- ✅ Better error messages with stack traces
 
 ## Usage
 
@@ -147,9 +205,9 @@ it('should access Firefox', () => {
 ## Limitations
 
 - Tests run sequentially (one file at a time)
-- beforeAll/afterAll hooks not yet fully supported
-- Error stacks may not be as detailed as Node.js
-- Some Vitest features may not work inside Firefox
+- Some advanced Vitest features may not be available (snapshots, mocking, etc.)
+- Error stacks reference bundled code, not original source (no source maps yet)
+- Requires Firefox to be running with Marionette enabled
 
 ## Troubleshooting
 
@@ -179,5 +237,7 @@ This pool is inspired by Cloudflare's workers pool but adapted for Firefox:
 | Runtime | Miniflare/Workerd | Firefox |
 | Access To | Worker APIs, KV, D1 | Services, XPCOM, Components |
 | Use Case | Worker development | userChrome CSS, Firefox extensions |
+| Import Support | ✅ Full (via Vite) | ✅ Full (via esbuild) |
+| Bundling | Vite/Rollup | esbuild |
 
-Both use the same principle: **run tests in the actual runtime** for maximum fidelity.
+Both use the same principle: **run tests in the actual runtime** for maximum fidelity, with proper module/import support.
