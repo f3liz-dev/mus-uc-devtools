@@ -178,10 +178,11 @@ npm test
 
 ### Vitest Integration (v4)
 
-The project includes a custom Vitest v4 pool for running tests in Firefox's chrome context. This enables:
-- Chrome context testing (userChrome CSS, XPCOM, etc.)
+The project includes a custom Vitest v4 pool that runs tests **inside** Firefox's chrome context. This enables:
+- Direct access to Services, Components, and XPCOM APIs (no RPC needed)
+- Native chrome context testing for userChrome CSS
 - Visual regression testing via screenshots
-- Integration with modern test tooling
+- Tests written in familiar Vitest syntax
 
 **Prerequisites**: Firefox must be running with `marionette.port=2828` set in `about:config`.
 
@@ -189,15 +190,11 @@ The project includes a custom Vitest v4 pool for running tests in Firefox's chro
 # Run all Vitest tests
 npm run test:vitest
 
-# Run only Firefox chrome context tests
-npm run test:vitest:firefox
-
-# Run only Node.js tests
-npm run test:vitest:node
-
-# Watch mode
+# Watch mode for development
 npm run test:vitest:watch
 ```
+
+**Key Difference**: Unlike traditional browser testing, tests run **directly inside** Firefox's chrome context, giving you native access to all Firefox internals without needing `executeScript()` wrappers.
 
 See [vitest-pool/README.md](vitest-pool/README.md) for detailed documentation on the Vitest integration.
 

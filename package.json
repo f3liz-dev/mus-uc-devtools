@@ -10,9 +10,6 @@
     "test": "node tests/headless-test.js",
     "test:vitest": "vitest",
     "test:vitest:watch": "vitest --watch",
-    "test:vitest:firefox": "vitest --project firefox-chrome-context",
-    "test:vitest:chrome": "vitest --project chrome-browser",
-    "test:vitest:node": "vitest --project node-tests",
     "build": "cargo build --release --target wasm32-wasip1 && mkdir -p bin && cp target/wasm32-wasip1/release/mus-uc.wasm bin/",
     "prepublishOnly": "npm run build"
   },

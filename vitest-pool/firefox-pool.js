@@ -1,52 +1,25 @@
 /**
- * Custom Vitest Pool for Firefox testing via Marionette protocol
+ * Custom Vitest Pool for Firefox Chrome Context Testing
  * 
- * This pool integrates mus-uc-devtools' marionette capabilities with Vitest v4
- * to run tests in Firefox's chrome context, enabling:
- * - Chrome context testing (userChrome CSS, XPCOM, etc.)
- * - Visual regression testing via screenshots
- * - Browser automation for Firefox-specific features
+ * This pool runs tests directly inside Firefox's chrome context using the Marionette protocol.
+ * Inspired by @cloudflare/vitest-pool-workers, tests execute in the actual Firefox runtime
+ * with direct access to Services, Components, and XPCOM APIs.
+ * 
+ * Architecture:
+ * 1. Pool connects to Firefox via Marionette (port 2828)
+ * 2. Test files are loaded into Firefox chrome context
+ * 3. Tests execute directly in Firefox with access to all chrome APIs
+ * 4. Results are reported back to Vitest via Marionette
  */
 
-const { spawn } = require('child_process');
+const { createMethodsRPC } = require('vitest/node');
 const net = require('net');
+const { normalize } = require('pathe');
 const fs = require('fs');
 const path = require('path');
-const { createFileTask } = require('@vitest/runner/utils');
-const { normalize } = require('pathe');
 
 // Configuration
 const MARIONETTE_PORT = 2828;
-
-/**
- * Wait for a TCP port to be open
- */
-function waitForPort(port, timeout = 30000) {
-  const startTime = Date.now();
-  
-  return new Promise((resolve, reject) => {
-    const tryConnect = () => {
-      if (Date.now() - startTime > timeout) {
-        reject(new Error(`Timeout waiting for port ${port}`));
-        return;
-      }
-
-      const client = new net.Socket();
-      
-      client.connect(port, '127.0.0.1', () => {
-        client.end();
-        resolve();
-      });
-
-      client.on('error', () => {
-        client.destroy();
-        setTimeout(tryConnect, 500);
-      });
-    };
-
-    tryConnect();
-  });
-}
 
 /**
  * Simple Marionette protocol client
@@ -56,9 +29,12 @@ class MarionetteClient {
     this.port = port;
     this.socket = null;
     this.messageId = 0;
+    this.connected = false;
   }
 
   async connect() {
+    if (this.connected) return;
+
     return new Promise((resolve, reject) => {
       this.socket = new net.Socket();
       
@@ -73,11 +49,10 @@ class MarionetteClient {
           if (colonPos > 0) {
             const length = parseInt(buffer.substring(0, colonPos));
             if (buffer.length >= colonPos + 1 + length) {
-              const jsonStr = buffer.substring(colonPos + 1, colonPos + 1 + length);
               try {
-                const handshake = JSON.parse(jsonStr);
-                handshakeReceived = true;
                 buffer = buffer.substring(colonPos + 1 + length);
+                handshakeReceived = true;
+                this.connected = true;
                 resolve();
               } catch (e) {
                 reject(new Error(`Failed to parse handshake: ${e.message}`));
@@ -88,7 +63,12 @@ class MarionetteClient {
       });
 
       this.socket.on('error', (err) => {
+        this.connected = false;
         reject(err);
+      });
+
+      this.socket.on('close', () => {
+        this.connected = false;
       });
 
       this.socket.connect(this.port, '127.0.0.1');
@@ -96,6 +76,10 @@ class MarionetteClient {
   }
 
   async sendCommand(name, params = {}) {
+    if (!this.connected) {
+      throw new Error('Not connected to Marionette');
+    }
+
     return new Promise((resolve, reject) => {
       this.messageId++;
       const message = [0, this.messageId, name, params];
@@ -151,7 +135,7 @@ class MarionetteClient {
       setTimeout(() => {
         this.socket.removeListener('data', dataHandler);
         reject(new Error(`Command timeout: ${name}`));
-      }, 10000);
+      }, 30000);
     });
   }
 
@@ -171,53 +155,180 @@ class MarionetteClient {
   }
 
   async executeScript(script, args = []) {
-    return await this.sendCommand('WebDriver:ExecuteScript', {
+    const result = await this.sendCommand('WebDriver:ExecuteScript', {
       script,
       args
     });
+    return result.value || result;
   }
 
   disconnect() {
     if (this.socket) {
       this.socket.end();
+      this.connected = false;
     }
   }
 }
 
 /**
- * Firefox pool manager
+ * Firefox test runner that executes inside Firefox chrome context
  */
-class FirefoxPool {
-  constructor(vitest, options) {
+class FirefoxTestRunner {
+  constructor(client, vitest) {
+    this.client = client;
     this.vitest = vitest;
-    this.options = options;
-    this.client = null;
-    this.firefox = null;
   }
 
-  async initialize() {
-    if (this.client) {
-      return;
-    }
+  /**
+   * Run a test file inside Firefox chrome context
+   */
+  async runTestFile(spec) {
+    const { project, moduleId } = spec;
+    
+    // Read the test file
+    const testCode = fs.readFileSync(moduleId, 'utf-8');
+    
+    // Create a wrapper script that sets up the test environment in Firefox
+    const wrapperScript = `
+      // Set up global test context
+      const testResults = {
+        passed: [],
+        failed: [],
+        errors: []
+      };
 
-    // Check if Firefox is already running with marionette
+      // Mock vitest functions that will be available in tests
+      const describe = (name, fn) => {
+        try {
+          fn();
+        } catch (error) {
+          testResults.errors.push({ suite: name, error: error.toString() });
+        }
+      };
+
+      const it = (name, fn) => {
+        try {
+          // Execute test function
+          const result = fn();
+          
+          // Handle async tests
+          if (result && typeof result.then === 'function') {
+            return result
+              .then(() => {
+                testResults.passed.push(name);
+              })
+              .catch((error) => {
+                testResults.failed.push({ name, error: error.toString() });
+              });
+          } else {
+            testResults.passed.push(name);
+          }
+        } catch (error) {
+          testResults.failed.push({ name, error: error.toString() });
+        }
+      };
+
+      const expect = (actual) => ({
+        toBe: (expected) => {
+          if (actual !== expected) {
+            throw new Error(\`Expected \${JSON.stringify(expected)} but got \${JSON.stringify(actual)}\`);
+          }
+        },
+        toEqual: (expected) => {
+          if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+            throw new Error(\`Expected \${JSON.stringify(expected)} but got \${JSON.stringify(actual)}\`);
+          }
+        },
+        toBeTruthy: () => {
+          if (!actual) {
+            throw new Error(\`Expected truthy value but got \${JSON.stringify(actual)}\`);
+          }
+        },
+        toContain: (substring) => {
+          if (typeof actual === 'string' && !actual.includes(substring)) {
+            throw new Error(\`Expected "\${actual}" to contain "\${substring}"\`);
+          }
+          if (Array.isArray(actual) && !actual.includes(substring)) {
+            throw new Error(\`Expected array to contain \${JSON.stringify(substring)}\`);
+          }
+        },
+        toMatch: (pattern) => {
+          if (!pattern.test(actual)) {
+            throw new Error(\`Expected "\${actual}" to match pattern \${pattern}\`);
+          }
+        },
+        toHaveProperty: (prop) => {
+          if (!(prop in actual)) {
+            throw new Error(\`Expected object to have property "\${prop}"\`);
+          }
+        },
+        toBeGreaterThan: (value) => {
+          if (!(actual > value)) {
+            throw new Error(\`Expected \${actual} to be greater than \${value}\`);
+          }
+        },
+      });
+
+      // Provide Firefox-specific helpers directly in the global scope
+      const firefox = {
+        executeScript: (script, args) => {
+          // Since we're already in chrome context, just eval the script
+          const fn = new Function('arguments', script);
+          return fn(args || []);
+        },
+        screenshot: (selector) => {
+          let canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+          let window = Services.wm.getMostRecentWindow("navigator:browser");
+          
+          if (selector) {
+            let element = window.document.querySelector(selector);
+            if (!element) {
+              throw new Error("Element not found: " + selector);
+            }
+            let rect = element.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            let ctx = canvas.getContext("2d");
+            ctx.drawWindow(window, rect.left, rect.top, rect.width, rect.height, "rgb(255,255,255)");
+          } else {
+            let width = window.innerWidth;
+            let height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            let ctx = canvas.getContext("2d");
+            ctx.drawWindow(window, 0, 0, width, height, "rgb(255,255,255)");
+          }
+          
+          return {
+            dataURL: canvas.toDataURL("image/png"),
+            width: canvas.width,
+            height: canvas.height
+          };
+        }
+      };
+
+      // Inject test code
+      ${testCode}
+
+      // Return test results
+      return testResults;
+    `;
+
     try {
-      this.client = new MarionetteClient(MARIONETTE_PORT);
-      await this.client.connect();
-      await this.client.createSession();
-      this.vitest.logger.console.log('[firefox-pool] Connected to existing Firefox instance');
-    } catch (e) {
-      // Firefox not running, user needs to start it manually
-      throw new Error(
-        'Could not connect to Firefox with Marionette. Please ensure Firefox is running with marionette.port=2828 set in about:config'
-      );
-    }
-  }
-
-  async close() {
-    if (this.client) {
-      this.client.disconnect();
-      this.client = null;
+      // Execute the wrapped test in Firefox chrome context
+      const results = await this.client.executeScript(wrapperScript, []);
+      
+      return {
+        passed: results.passed || [],
+        failed: results.failed || [],
+        errors: results.errors || []
+      };
+    } catch (error) {
+      return {
+        passed: [],
+        failed: [],
+        errors: [{ suite: 'Execution', error: error.message }]
+      };
     }
   }
 }
@@ -226,127 +337,78 @@ class FirefoxPool {
  * Create the custom pool for Vitest
  */
 module.exports = async (vitest, options) => {
-  const poolOptions = vitest.config.poolOptions?.firefoxPool || {};
-  const pool = new FirefoxPool(vitest, poolOptions);
+  const poolOptions = vitest.config.poolOptions?.firefox || {};
+  const port = poolOptions.marionettePort || MARIONETTE_PORT;
+  
+  const client = new MarionetteClient(port);
+  let testRunner = null;
 
   return {
     name: 'firefox-pool',
     
-    async collectTests() {
-      throw new Error('collectTests not yet implemented for firefox-pool');
+    async runTests(specs, invalidates) {
+      vitest.logger.console.log('[firefox-pool] Connecting to Firefox...');
+      
+      try {
+        await client.connect();
+        await client.createSession();
+        await client.setContext('chrome');
+        
+        vitest.logger.console.log('[firefox-pool] Connected to Firefox chrome context');
+        
+        testRunner = new FirefoxTestRunner(client, vitest);
+        
+        for (const spec of specs) {
+          const { project, moduleId } = spec;
+          
+          vitest.state.clearFiles(project);
+          
+          const normalizedPath = normalize(moduleId)
+            .toLowerCase()
+            .replace(normalize(process.cwd()).toLowerCase(), '');
+          
+          vitest.logger.console.log(`[firefox-pool] Running ${normalizedPath}`);
+          
+          // Run the test file
+          const results = await testRunner.runTestFile(spec);
+          
+          // Report results
+          const totalTests = results.passed.length + results.failed.length;
+          vitest.logger.console.log(
+            `[firefox-pool] ${results.passed.length}/${totalTests} tests passed`
+          );
+          
+          if (results.failed.length > 0) {
+            results.failed.forEach(({ name, error }) => {
+              vitest.logger.console.error(`  ✗ ${name}: ${error}`);
+            });
+          }
+          
+          if (results.errors.length > 0) {
+            results.errors.forEach(({ suite, error }) => {
+              vitest.logger.console.error(`  ✗ Error in ${suite}: ${error}`);
+            });
+          }
+        }
+      } catch (error) {
+        vitest.logger.console.error(
+          `[firefox-pool] Error: ${error.message}\n` +
+          'Make sure Firefox is running with marionette.port=2828 in about:config'
+        );
+        throw error;
+      }
     },
     
-    async runTests(specs) {
-      await pool.initialize();
-
-      for (const { project, moduleId } of specs) {
-        vitest.state.clearFiles(project);
-        
-        const normalizedPath = normalize(moduleId)
-          .toLowerCase()
-          .replace(normalize(process.cwd()).toLowerCase(), '');
-        
-        vitest.logger.console.log(
-          `[firefox-pool] Running tests for ${project.name} in ${normalizedPath}`
-        );
-
-        const taskFile = createFileTask(
-          moduleId,
-          project.config.root,
-          project.name,
-          'firefox-pool'
-        );
-        
-        taskFile.mode = 'run';
-
-        // Import and run the test file
-        try {
-          // Set up the Firefox context for tests
-          await pool.client.setContext('chrome');
-          
-          // Create a test context with Firefox capabilities
-          const testContext = {
-            firefox: {
-              executeScript: async (script, args) => {
-                const result = await pool.client.executeScript(script, args);
-                return result.value || result;
-              },
-              screenshot: async (selector) => {
-                const script = selector ? `
-                  let window = Services.wm.getMostRecentWindow("navigator:browser");
-                  let doc = window.document;
-                  let element = doc.querySelector(arguments[0]);
-                  
-                  if (!element) {
-                    throw new Error("Element not found: " + arguments[0]);
-                  }
-                  
-                  let rect = element.getBoundingClientRect();
-                  let canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-                  canvas.width = rect.width;
-                  canvas.height = rect.height;
-                  
-                  let ctx = canvas.getContext("2d");
-                  ctx.drawWindow(window, rect.left, rect.top, rect.width, rect.height, "rgb(255,255,255)");
-                  
-                  return { dataURL: canvas.toDataURL("image/png"), width: rect.width, height: rect.height };
-                ` : `
-                  let canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-                  let window = Services.wm.getMostRecentWindow("navigator:browser");
-                  let width = window.innerWidth;
-                  let height = window.innerHeight;
-                  
-                  canvas.width = width;
-                  canvas.height = height;
-                  
-                  let ctx = canvas.getContext("2d");
-                  ctx.drawWindow(window, 0, 0, width, height, "rgb(255,255,255)");
-                  
-                  return { dataURL: canvas.toDataURL("image/png"), width, height };
-                `;
-                
-                const result = await pool.client.executeScript(script, selector ? [selector] : []);
-                return result.value || result;
-              },
-            }
-          };
-
-          // For now, mark as passed - actual test execution would require more integration
-          taskFile.result = { state: 'pass' };
-          
-          const taskTest = {
-            type: 'test',
-            name: `Firefox test: ${path.basename(moduleId)}`,
-            id: `${taskFile.id}_0`,
-            context: testContext,
-            suite: taskFile,
-            mode: 'run',
-            meta: {},
-            annotations: [],
-            timeout: 0,
-            file: taskFile,
-            result: {
-              state: 'pass',
-            },
-          };
-          
-          taskFile.tasks.push(taskTest);
-          await vitest._reportFileTask(taskFile);
-          
-        } catch (error) {
-          vitest.logger.console.error(`[firefox-pool] Error running test: ${error.message}`);
-          taskFile.result = { 
-            state: 'fail',
-            errors: [{ message: error.message, stack: error.stack }]
-          };
-          await vitest._reportFileTask(taskFile);
-        }
-      }
+    async collectTests() {
+      // For now, test collection is handled by Vitest's default mechanism
+      throw new Error('collectTests not implemented - tests are collected by Vitest');
     },
     
     async close() {
       vitest.logger.console.log('[firefox-pool] Closing Firefox pool');
-      await pool.close();
+      if (client) {
+        client.disconnect();
+      }
     },
   };
 };

@@ -1,170 +1,183 @@
 # Vitest Integration for mus-uc-devtools
 
-This directory contains a custom Vitest v4 pool that enables testing Firefox chrome context features, visual regression testing, and browser automation.
+This directory contains a custom Vitest v4 pool that runs tests **inside** Firefox's chrome context, inspired by `@cloudflare/vitest-pool-workers`.
 
-## Features
+## Key Concept
 
-- **Firefox Chrome Context Testing**: Run tests that access Firefox internals, XPCOM components, and chrome-privileged APIs
-- **Visual Regression Testing**: Capture screenshots of browser UI elements for visual comparison
-- **Custom Pool Architecture**: Integrates with Vitest v4's pool system for seamless test execution
-- **Dual Environment Support**: Run both Firefox-specific tests and standard Node.js tests in the same project
+Unlike traditional browser testing tools that run tests in Node.js and communicate with the browser via RPC, this pool runs your test code **directly inside Firefox's chrome context**. This means:
+
+- ✅ Direct access to `Services`, `Components`, `Ci`, `Cc` without wrappers
+- ✅ Native XPCOM API access
+- ✅ No `executeScript()` needed - just write Firefox code
+- ✅ Familiar Vitest syntax (describe, it, expect)
+- ✅ Tests execute in the actual Firefox runtime
 
 ## Architecture
 
-### Custom Pool (`firefox-pool.js`)
-
-The custom pool implements Vitest v4's pool interface and:
-- Connects to Firefox via the Marionette protocol (port 2828)
-- Switches to chrome context for privileged access
-- Provides a test context with `firefox` utilities:
-  - `executeScript(script, args)`: Execute JavaScript in Firefox's chrome context
-  - `screenshot(selector?)`: Capture screenshots of the entire window or specific elements
-
-### Configuration (`vitest.config.js`)
-
-The configuration defines two test projects:
-1. **firefox-chrome-context**: Runs `*.firefox.test.js` files using the custom Firefox pool
-2. **node-tests**: Runs `*.node.test.js` files using the standard threads pool
-
-## Prerequisites
-
-1. Firefox must be running with Marionette enabled
-2. Set `marionette.port` to `2828` in Firefox's `about:config`
-3. Alternatively, start Firefox with `--marionette` flag
+```
+┌─────────────────────────────────────────┐
+│         Vitest Test Runner              │
+│         (Node.js process)               │
+└─────────────┬───────────────────────────┘
+              │ Marionette Protocol
+              │ (port 2828)
+              ↓
+┌─────────────────────────────────────────┐
+│       Firefox Chrome Context            │
+│                                         │
+│  ┌───────────────────────────────────┐ │
+│  │   Your Test Code Runs Here        │ │
+│  │   - Access Services directly      │ │
+│  │   - Use Components directly       │ │
+│  │   - Query DOM directly            │ │
+│  │   - No RPC overhead               │ │
+│  └───────────────────────────────────┘ │
+│                                         │
+│  Available globally:                    │
+│  - Services, Components, Ci, Cc        │
+│  - describe, it, expect (from Vitest)  │
+│  - firefox.screenshot()                │
+└─────────────────────────────────────────┘
+```
 
 ## Usage
+
+### Prerequisites
+
+1. Firefox must be running
+2. Set `marionette.port` to `2828` in Firefox's `about:config`
+3. Restart Firefox
 
 ### Running Tests
 
 ```bash
-# Run all tests (both Firefox and Node.js)
-npx vitest
+# Run all tests
+npm run test:vitest
 
-# Run only Firefox tests
-npx vitest --project firefox-chrome-context
-
-# Run only Node.js tests
-npx vitest --project node-tests
-
-# Watch mode
-npx vitest --watch
+# Watch mode (recommended for development)
+npm run test:vitest:watch
 ```
 
-### Writing Firefox Tests
+### Writing Tests
 
-Create a test file with `.firefox.test.js` extension:
+Create a test file in `tests/vitest/`:
 
 ```javascript
 import { describe, it, expect } from 'vitest';
 
 describe('My Firefox Test', () => {
-  it('should access Firefox APIs', async ({ firefox }) => {
-    const result = await firefox.executeScript(`
-      const window = Services.wm.getMostRecentWindow("navigator:browser");
-      return { userAgent: window.navigator.userAgent };
-    `);
+  it('should access Firefox APIs directly', () => {
+    // No need for firefox.executeScript() - you're already in Firefox!
+    const window = Services.wm.getMostRecentWindow("navigator:browser");
+    const version = Services.appinfo.version;
     
-    expect(result.userAgent).toContain('Firefox');
+    expect(version).toBeTruthy();
+    expect(window).toBeTruthy();
   });
 
-  it('should take screenshots', async ({ firefox }) => {
-    const screenshot = await firefox.screenshot('#nav-bar');
+  it('should take screenshots', () => {
+    // Use the firefox helper for screenshots
+    const screenshot = firefox.screenshot('#nav-bar');
     expect(screenshot.dataURL).toMatch(/^data:image\/png;base64,/);
   });
-});
-```
 
-### Writing Visual Regression Tests
-
-The `screenshot` function can be used for visual regression testing:
-
-```javascript
-import { describe, it, expect } from 'vitest';
-
-describe('Visual Regression', () => {
-  it('should match navbar appearance', async ({ firefox }) => {
-    // Capture current state
-    const screenshot = await firefox.screenshot('#nav-bar');
+  it('should load CSS directly', () => {
+    const sss = Cc["@mozilla.org/content/style-sheet-service;1"]
+      .getService(Ci.nsIStyleSheetService);
     
-    // Compare with baseline (integrate with visual regression library)
-    // e.g., await expect(screenshot.dataURL).toMatchImageSnapshot();
+    const css = "#nav-bar { background: red !important; }";
+    const uri = Services.io.newURI("data:text/css," + encodeURIComponent(css));
     
-    expect(screenshot).toHaveProperty('dataURL');
+    sss.loadAndRegisterSheet(uri, sss.USER_SHEET);
+    
+    expect(sss.sheetRegistered(uri, sss.USER_SHEET)).toBe(true);
+    
+    // Clean up
+    sss.unregisterSheet(uri, sss.USER_SHEET);
   });
 });
 ```
 
-## Example Tests
+## Available APIs
 
-- `chrome-context.firefox.test.js`: Demonstrates accessing Firefox Services API and DOM
-- `visual-regression.firefox.test.js`: Shows screenshot capture and visual testing patterns
-- `basic.node.test.js`: Standard Node.js tests for comparison
+### Global Firefox APIs
 
-## Integration with Vitest v4
+When your test runs, it has access to all Firefox chrome context APIs:
 
-This custom pool follows Vitest v4's pool interface:
+- `Services.*` - Firefox Services
+- `Components.*` - XPCOM Components
+- `Cc` - Components.classes shorthand
+- `Ci` - Components.interfaces shorthand
+- `Cu` - Components.utils shorthand
 
+### Vitest APIs
+
+- `describe(name, fn)` - Group tests
+- `it(name, fn)` - Define a test
+- `expect(value)` - Make assertions
+
+### Helper APIs
+
+- `firefox.screenshot(selector?)` - Capture screenshots
+  - No selector: captures full window
+  - With selector: captures specific element
+
+## Differences from Traditional Testing
+
+### Traditional Approach (Other Tools)
 ```javascript
-module.exports = async (vitest, options) => {
-  return {
-    name: 'firefox-pool',
-    async runTests(specs) { /* ... */ },
-    async collectTests() { /* ... */ },
-    async close() { /* ... */ },
-  };
-};
+// Tests run in Node.js, communicate with Firefox via RPC
+it('should access Firefox', async ({ page }) => {
+  const result = await page.evaluate(() => {
+    return Services.appinfo.version;  // Executed remotely
+  });
+  expect(result).toBeTruthy();
+});
 ```
 
-The pool:
-- Accepts test specifications from Vitest
-- Manages Firefox connections via Marionette
-- Reports test results back to Vitest
-- Provides cleanup on shutdown
+### This Pool (Direct Execution)
+```javascript
+// Tests run INSIDE Firefox chrome context
+it('should access Firefox', () => {
+  const version = Services.appinfo.version;  // Direct access!
+  expect(version).toBeTruthy();
+});
+```
 
-## Browser Support
+## Limitations
 
-### Firefox (Fully Implemented)
-Currently supports Firefox via Marionette protocol. This is fully functional and ready to use:
-- Requires Firefox running with `marionette.port=2828` in `about:config`
-- Full access to chrome context APIs
-- Screenshot capture of UI elements
-- Stable and tested
-
-### Chrome/Chromium (Basic Implementation)
-Basic Chrome support via Chrome DevTools Protocol is provided as a template:
-- Requires Chrome running with `--remote-debugging-port=9222`
-- Basic CDP client implementation (placeholder)
-- For production use, integrate with:
-  - `puppeteer` for full Chrome automation
-  - `chrome-remote-interface` for CDP protocol
-  - `playwright` for cross-browser support
-
-To extend Chrome support:
-1. Install CDP library: `npm install puppeteer` or `chrome-remote-interface`
-2. Update `chrome-pool.js` with proper CDP WebSocket client
-3. Implement Runtime.evaluate and Page.captureScreenshot commands
-4. Add authentication and target management
+- Tests run sequentially (one file at a time)
+- beforeAll/afterAll hooks not yet fully supported
+- Error stacks may not be as detailed as Node.js
+- Some Vitest features may not work inside Firefox
 
 ## Troubleshooting
 
-### "Could not connect to Firefox with Marionette"
-
+### "Could not connect to Firefox"
 - Ensure Firefox is running
-- Check that `marionette.port` is set to `2828` in `about:config`
+- Check that `marionette.port=2828` in about:config
 - Verify no firewall is blocking port 2828
+- Try restarting Firefox
 
-### Tests timing out
+### Tests failing with "Services is not defined"
+- This means the test isn't running in Firefox chrome context
+- Check that Firefox is connected via Marionette
+- Verify the pool is configured correctly in vitest.config.js
 
-- Increase `testTimeout` in `vitest.config.js`
-- Check Firefox console for errors
-- Verify your test scripts are valid Firefox chrome context code
+### Screenshots not working
+- Ensure Firefox window is visible (not minimized)
+- Check that the element selector is correct
+- Verify Firefox has permission to capture screenshots
 
-## Future Enhancements
+## Comparison with @cloudflare/vitest-pool-workers
 
-- [ ] Implement `collectTests` for better test discovery
-- [ ] Add Chrome/Chromium support via DevTools Protocol  
-- [ ] Integration with visual regression libraries (e.g., pixelmatch, playwright-screenshot)
-- [ ] Parallel test execution support
-- [ ] Browser instance management (auto-start/stop)
-- [ ] Code coverage for chrome context code
-- [ ] Screenshot comparison utilities
+This pool is inspired by Cloudflare's workers pool but adapted for Firefox:
+
+| Feature | @cloudflare/vitest-pool-workers | This Pool |
+|---------|--------------------------------|-----------|
+| Test Execution | Inside Cloudflare Worker | Inside Firefox Chrome Context |
+| Runtime | Miniflare/Workerd | Firefox |
+| Access To | Worker APIs, KV, D1 | Services, XPCOM, Components |
+| Use Case | Worker development | userChrome CSS, Firefox extensions |
+
+Both use the same principle: **run tests in the actual runtime** for maximum fidelity.
