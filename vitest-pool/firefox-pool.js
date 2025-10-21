@@ -108,6 +108,8 @@ class FirefoxTestRunner {
 
   async runTestFile(spec) {
     const testCode = fs.readFileSync(spec.moduleId, 'utf-8');
+    // Remove ES6 import statements since they can't be used in executeScript context
+    const strippedTestCode = testCode.replace(/^import\s+.*?from\s+['"].*?['"];?\s*$/gm, '');
     const wrapperScript = `
       // Set up global test context
       const testResults = {
@@ -117,6 +119,19 @@ class FirefoxTestRunner {
       };
 
       // Mock vitest functions that will be available in tests
+      const testHooks = {
+        beforeAll: [],
+        afterAll: []
+      };
+
+      const beforeAll = (fn) => {
+        testHooks.beforeAll.push(fn);
+      };
+
+      const afterAll = (fn) => {
+        testHooks.afterAll.push(fn);
+      };
+
       const describe = (name, fn) => {
         try {
           fn();
@@ -180,7 +195,26 @@ class FirefoxTestRunner {
         }
       };
 
-      ${testCode}
+      // Run beforeAll hooks
+      testHooks.beforeAll.forEach(fn => {
+        try {
+          fn();
+        } catch (error) {
+          testResults.errors.push({ suite: 'beforeAll', error: error.toString() });
+        }
+      });
+
+      ${strippedTestCode}
+
+      // Run afterAll hooks
+      testHooks.afterAll.forEach(fn => {
+        try {
+          fn();
+        } catch (error) {
+          testResults.errors.push({ suite: 'afterAll', error: error.toString() });
+        }
+      });
+
       return testResults;
     `;
 
