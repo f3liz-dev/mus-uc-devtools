@@ -468,9 +468,12 @@ class FirefoxTestRunner {
       `from '${this.moduleServer.getModuleUrl('/vitest')}'`
     );
     
+    // Use .vitest-temp path for the URL since that's where we'll write the file
+    const tempRelativePath = path.join('.vitest-temp', path.basename(filePath));
+    
     return {
       code: transformedCode,
-      url: this.moduleServer.getModuleUrl('/' + relativePath)
+      url: this.moduleServer.getModuleUrl('/' + tempRelativePath)
     };
   }
 
