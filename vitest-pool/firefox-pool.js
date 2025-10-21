@@ -284,6 +284,38 @@ class FirefoxTestRunner {
                   error.actual = actual;
                   throw error;
                 }
+              },
+              toEqual: (expected) => {
+                const actualStr = JSON.stringify(actual);
+                const expectedStr = JSON.stringify(expected);
+                if (actualStr === expectedStr) {
+                  const error = new Error(\`Expected not to equal \${expectedStr}\`);
+                  error.actual = actual;
+                  error.expected = expected;
+                  throw error;
+                }
+              },
+              toBeTruthy: () => {
+                if (actual) {
+                  const error = new Error(\`Expected not to be truthy but got \${JSON.stringify(actual)}\`);
+                  error.actual = actual;
+                  throw error;
+                }
+              },
+              toBeFalsy: () => {
+                if (!actual) {
+                  const error = new Error(\`Expected not to be falsy but got \${JSON.stringify(actual)}\`);
+                  error.actual = actual;
+                  throw error;
+                }
+              },
+              toContain: (s) => {
+                if (actual.includes(s)) {
+                  const error = new Error(\`Expected not to contain \${JSON.stringify(s)}\`);
+                  error.actual = actual;
+                  error.expected = s;
+                  throw error;
+                }
               }
             }
           });
