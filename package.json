@@ -8,8 +8,6 @@
   },
   "scripts": {
     "test": "node tests/headless-test.js",
-    "test:vitest": "vitest",
-    "test:vitest:watch": "vitest --watch",
     "build": "cargo build --release --target wasm32-wasip1 && mkdir -p bin && cp target/wasm32-wasip1/release/mus-uc.wasm bin/",
     "build:wasm-pack": "wasm-pack build --target nodejs --out-dir pkg --release",
     "prepublishOnly": "npm run build"
@@ -17,9 +15,7 @@
   "files": [
     "bin/mus-uc.wasm",
     "index.js",
-    "README.md",
-    "vitest-pool/",
-    "vitest.config.js"
+    "README.md"
   ],
   "keywords": [
     "firefox",
@@ -40,10 +36,6 @@
     "node": ">=18.0.0"
   },
   "devDependencies": {
-    "@puppeteer/browsers": "^2.4.1",
-    "@vitest/runner": "^4.0.0-beta.18",
-    "@vitest/utils": "^4.0.0-beta.18",
-    "pathe": "^2.0.3",
-    "vitest": "^4.0.0-beta.18"
+    "@puppeteer/browsers": "^2.4.1"
   }
 }
