@@ -9,6 +9,8 @@
 import { cssManager, marionette, screenshot } from '../dist/mus_uc_devtools.js';
 import { strict as assert } from 'assert';
 
+const ERROR_MESSAGE_MAX_LENGTH = 80;
+
 console.log('Testing jco-generated JavaScript bindings...\n');
 
 // Test CSS Manager API
@@ -44,7 +46,7 @@ try {
     console.log('   Result:', result);
 } catch (err) {
     // This is expected if Firefox isn't running
-    console.log('   ✓ Got expected error (Firefox not running):', err.message.substring(0, 80));
+    console.log('   ✓ Got expected error (Firefox not running):', err.message.substring(0, ERROR_MESSAGE_MAX_LENGTH));
 }
 
 console.log('\n✓ All API structure tests passed!');

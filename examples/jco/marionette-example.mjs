@@ -57,7 +57,7 @@ async function main() {
         return {
             sum: x + y,
             product: x * y,
-            message: \`Calculated: \${x} + \${y} = \${x + y}\`
+            message: 'Calculated: ' + x + ' + ' + y + ' = ' + (x + y)
         };
     `;
     
@@ -90,11 +90,11 @@ async function main() {
     
     if (tabsResult.tag === 'ok') {
         const tabsData = JSON.parse(tabsResult.val);
-        console.log(\`   Found \${tabsData.count} tab(s):\`);
+        console.log(`   Found ${tabsData.count} tab(s):`);
         tabsData.tabs.forEach((tab, i) => {
             const marker = tab.selected ? '→' : ' ';
-            console.log(\`   \${marker} [\${i + 1}] \${tab.title}\`);
-            console.log(\`       \${tab.url}\`);
+            console.log(`   ${marker} [${i + 1}] ${tab.title}`);
+            console.log(`       ${tab.url}`);
         });
     } else {
         console.error('   Failed to list tabs:', tabsResult.val);
