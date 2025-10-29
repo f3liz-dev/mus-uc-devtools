@@ -10,7 +10,7 @@
     "test": "node tests/headless-test.js",
     "build": "cargo build --release --target wasm32-wasip1 && mkdir -p bin && cp target/wasm32-wasip1/release/mus-uc.wasm bin/",
     "build:wasm-pack": "wasm-pack build --target nodejs --out-dir pkg --release",
-    "build:component": "cargo component build --release --features component && npx jco transpile target/wasm32-wasip1/release/mus_uc_devtools.wasm -o dist",
+    "build:component": "cargo component build --release --features component && npx jco transpile target/wasm32-wasip1/release/mus_uc_devtools.wasm -o dist && echo '{\"type\": \"module\"}' > dist/package.json",
     "prepublishOnly": "npm run build"
   },
   "files": [

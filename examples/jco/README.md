@@ -14,8 +14,8 @@ npm run build:component
 ## Running Examples
 
 ```bash
-node examples/jco/css-manager-example.js
-node examples/jco/marionette-example.js
+node examples/jco/css-manager-example.mjs
+node examples/jco/marionette-example.mjs
 ```
 
 ## What is jco?
