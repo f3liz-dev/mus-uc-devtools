@@ -15,155 +15,115 @@ wit_bindgen::generate!({
 });
 
 #[cfg(feature = "component")]
-// Global state for CSS manager
+use exports::mus_uc::devtools::{
+    css_manager::{ResultBool, ResultList, ResultString},
+    marionette::ResultString as MarionetteResultString,
+    screenshot::ResultBytes,
+};
+
+#[cfg(feature = "component")]
 static CSS_MANAGER: Mutex<Option<ChromeCSSManager>> = Mutex::new(None);
+
+#[cfg(feature = "component")]
+const NOT_INITIALIZED: &str = "CSS Manager not initialized. Call initialize() first.";
 
 #[cfg(feature = "component")]
 struct CssManager;
 
 #[cfg(feature = "component")]
 impl exports::mus_uc::devtools::css_manager::Guest for CssManager {
-    fn initialize() -> exports::mus_uc::devtools::css_manager::ResultString {
-        match ChromeCSSManager::new() {
-            Ok(mut manager) => {
-                match manager.initialize_chrome_context() {
-                    Ok(_) => {
-                        *CSS_MANAGER.lock().unwrap() = Some(manager);
-                        exports::mus_uc::devtools::css_manager::ResultString::Ok(
-                            "initialized".to_string(),
-                        )
-                    }
-                    Err(e) => exports::mus_uc::devtools::css_manager::ResultString::Err(
-                        e.to_string(),
-                    ),
-                }
-            }
-            Err(e) => {
-                exports::mus_uc::devtools::css_manager::ResultString::Err(e.to_string())
-            }
-        }
+    fn initialize() -> ResultString {
+        ChromeCSSManager::new()
+            .and_then(|mut m| m.initialize_chrome_context().map(|_| m))
+            .map(|m| {
+                *CSS_MANAGER.lock().unwrap() = Some(m);
+                ResultString::Ok("initialized".to_string())
+            })
+            .unwrap_or_else(|e| ResultString::Err(e.to_string()))
     }
 
-    fn load_css(
-        content: String,
-        id: Option<String>,
-    ) -> exports::mus_uc::devtools::css_manager::ResultString {
-        let mut manager_guard = CSS_MANAGER.lock().unwrap();
-        match manager_guard.as_mut() {
-            Some(manager) => match manager.load_css(&content, id.as_deref()) {
-                Ok(sheet_id) => {
-                    exports::mus_uc::devtools::css_manager::ResultString::Ok(sheet_id)
-                }
-                Err(e) => {
-                    exports::mus_uc::devtools::css_manager::ResultString::Err(e.to_string())
-                }
-            },
-            None => exports::mus_uc::devtools::css_manager::ResultString::Err(
-                "CSS Manager not initialized. Call initialize() first.".to_string(),
-            ),
-        }
+    fn load_css(content: String, id: Option<String>) -> ResultString {
+        CSS_MANAGER
+            .lock()
+            .unwrap()
+            .as_mut()
+            .ok_or_else(|| NOT_INITIALIZED.to_string())
+            .and_then(|m| m.load_css(&content, id.as_deref()).map_err(|e| e.to_string()))
+            .map(ResultString::Ok)
+            .unwrap_or_else(|e| ResultString::Err(e))
     }
 
-    fn unload_css(id: String) -> exports::mus_uc::devtools::css_manager::ResultBool {
-        let mut manager_guard = CSS_MANAGER.lock().unwrap();
-        match manager_guard.as_mut() {
-            Some(manager) => match manager.unload_css(&id) {
-                Ok(success) => exports::mus_uc::devtools::css_manager::ResultBool::Ok(success),
-                Err(e) => {
-                    exports::mus_uc::devtools::css_manager::ResultBool::Err(e.to_string())
-                }
-            },
-            None => exports::mus_uc::devtools::css_manager::ResultBool::Err(
-                "CSS Manager not initialized. Call initialize() first.".to_string(),
-            ),
-        }
+    fn unload_css(id: String) -> ResultBool {
+        CSS_MANAGER
+            .lock()
+            .unwrap()
+            .as_mut()
+            .ok_or_else(|| NOT_INITIALIZED.to_string())
+            .and_then(|m| m.unload_css(&id).map_err(|e| e.to_string()))
+            .map(ResultBool::Ok)
+            .unwrap_or_else(|e| ResultBool::Err(e))
     }
 
-    fn clear_all() -> exports::mus_uc::devtools::css_manager::ResultString {
-        let mut manager_guard = CSS_MANAGER.lock().unwrap();
-        match manager_guard.as_mut() {
-            Some(manager) => match manager.clear_all() {
-                Ok(_) => exports::mus_uc::devtools::css_manager::ResultString::Ok(
-                    "cleared".to_string(),
-                ),
-                Err(e) => {
-                    exports::mus_uc::devtools::css_manager::ResultString::Err(e.to_string())
-                }
-            },
-            None => exports::mus_uc::devtools::css_manager::ResultString::Err(
-                "CSS Manager not initialized. Call initialize() first.".to_string(),
-            ),
-        }
+    fn clear_all() -> ResultString {
+        CSS_MANAGER
+            .lock()
+            .unwrap()
+            .as_mut()
+            .ok_or_else(|| NOT_INITIALIZED.to_string())
+            .and_then(|m| m.clear_all().map(|_| "cleared".to_string()).map_err(|e| e.to_string()))
+            .map(ResultString::Ok)
+            .unwrap_or_else(|e| ResultString::Err(e))
     }
 
-    fn list_loaded() -> exports::mus_uc::devtools::css_manager::ResultList {
-        let manager_guard = CSS_MANAGER.lock().unwrap();
-        match manager_guard.as_ref() {
-            Some(manager) => {
-                exports::mus_uc::devtools::css_manager::ResultList::Ok(manager.list_loaded())
-            }
-            None => exports::mus_uc::devtools::css_manager::ResultList::Err(
-                "CSS Manager not initialized. Call initialize() first.".to_string(),
-            ),
-        }
+    fn list_loaded() -> ResultList {
+        CSS_MANAGER
+            .lock()
+            .unwrap()
+            .as_ref()
+            .ok_or_else(|| NOT_INITIALIZED.to_string())
+            .map(|m| ResultList::Ok(m.list_loaded()))
+            .unwrap_or_else(|e| ResultList::Err(e))
     }
 }
 
 #[cfg(feature = "component")]
-// Global state for Marionette connection
 static MARIONETTE_CONN: Mutex<Option<MarionetteConnection>> = Mutex::new(None);
+
+#[cfg(feature = "component")]
+const NOT_CONNECTED: &str = "Marionette not connected. Call connect() first.";
 
 #[cfg(feature = "component")]
 struct Marionette;
 
 #[cfg(feature = "component")]
 impl exports::mus_uc::devtools::marionette::Guest for Marionette {
-    fn connect(host: String, port: u16) -> exports::mus_uc::devtools::marionette::ResultString {
-        let settings = MarionetteSettings {
-            host: host.clone(),
-            port,
-        };
-
-        match MarionetteConnection::connect(&settings) {
-            Ok(mut conn) => {
-                // Set chrome context by default
-                if let Err(e) = conn.set_context("chrome") {
-                    return exports::mus_uc::devtools::marionette::ResultString::Err(
-                        e.to_string(),
-                    );
-                }
-
+    fn connect(host: String, port: u16) -> MarionetteResultString {
+        MarionetteConnection::connect(&MarionetteSettings { host: host.clone(), port })
+            .and_then(|mut conn| {
+                conn.set_context("chrome")?;
+                Ok(conn)
+            })
+            .map(|conn| {
                 *MARIONETTE_CONN.lock().unwrap() = Some(conn);
-                exports::mus_uc::devtools::marionette::ResultString::Ok(format!(
-                    "Connected to {}:{}",
-                    host, port
-                ))
-            }
-            Err(e) => exports::mus_uc::devtools::marionette::ResultString::Err(e.to_string()),
-        }
+                MarionetteResultString::Ok(format!("Connected to {}:{}", host, port))
+            })
+            .unwrap_or_else(|e| MarionetteResultString::Err(e.to_string()))
     }
 
-    fn execute_script(
-        script: String,
-        args: Option<String>,
-    ) -> exports::mus_uc::devtools::marionette::ResultString {
-        let mut conn_guard = MARIONETTE_CONN.lock().unwrap();
-        match conn_guard.as_mut() {
-            Some(conn) => {
+    fn execute_script(script: String, args: Option<String>) -> MarionetteResultString {
+        MARIONETTE_CONN
+            .lock()
+            .unwrap()
+            .as_mut()
+            .ok_or_else(|| NOT_CONNECTED.to_string())
+            .and_then(|conn| {
                 let parsed_args = args.and_then(|a| serde_json::from_str(&a).ok());
-                match conn.execute_script(&script, parsed_args) {
-                    Ok(result) => exports::mus_uc::devtools::marionette::ResultString::Ok(
-                        result.to_string(),
-                    ),
-                    Err(e) => exports::mus_uc::devtools::marionette::ResultString::Err(
-                        e.to_string(),
-                    ),
-                }
-            }
-            None => exports::mus_uc::devtools::marionette::ResultString::Err(
-                "Marionette not connected. Call connect() first.".to_string(),
-            ),
-        }
+                conn.execute_script(&script, parsed_args)
+                    .map(|r| r.to_string())
+                    .map_err(|e| e.to_string())
+            })
+            .map(MarionetteResultString::Ok)
+            .unwrap_or_else(|e| MarionetteResultString::Err(e))
     }
 }
 
@@ -172,26 +132,18 @@ struct Screenshot;
 
 #[cfg(feature = "component")]
 impl exports::mus_uc::devtools::screenshot::Guest for Screenshot {
-    fn take_screenshot(
-        selector: Option<String>,
-    ) -> exports::mus_uc::devtools::screenshot::ResultBytes {
-        // This requires screenshot functionality which uses Marionette
-        let mut conn_guard = MARIONETTE_CONN.lock().unwrap();
-        match conn_guard.as_mut() {
-            Some(conn) => {
-                match crate::screenshot::take_screenshot(conn, selector.as_deref()) {
-                    Ok(png_data) => {
-                        exports::mus_uc::devtools::screenshot::ResultBytes::Ok(png_data)
-                    }
-                    Err(e) => {
-                        exports::mus_uc::devtools::screenshot::ResultBytes::Err(e.to_string())
-                    }
-                }
-            }
-            None => exports::mus_uc::devtools::screenshot::ResultBytes::Err(
-                "Marionette not connected. Call marionette.connect() first.".to_string(),
-            ),
-        }
+    fn take_screenshot(selector: Option<String>) -> ResultBytes {
+        MARIONETTE_CONN
+            .lock()
+            .unwrap()
+            .as_mut()
+            .ok_or_else(|| "Marionette not connected. Call marionette.connect() first.".to_string())
+            .and_then(|conn| {
+                crate::screenshot::take_screenshot(conn, selector.as_deref())
+                    .map_err(|e| e.to_string())
+            })
+            .map(ResultBytes::Ok)
+            .unwrap_or_else(|e| ResultBytes::Err(e))
     }
 }
 

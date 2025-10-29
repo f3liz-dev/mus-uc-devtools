@@ -1,10 +1,8 @@
 /**
- * Example: Using CSS Manager via jco-transpiled WebAssembly Component
- * 
- * This example demonstrates how to use the Rust CSS manager from JavaScript.
+ * Example: CSS Manager via jco WebAssembly Component
  * 
  * Prerequisites:
- * 1. Run `npm run build:component` to generate the JS bindings
+ * 1. Run `npm run build:component`
  * 2. Start Firefox with Marionette enabled on port 2828
  */
 
@@ -13,66 +11,53 @@ import { cssManager } from '../../dist/mus_uc_devtools.js';
 async function main() {
     console.log('CSS Manager Example\n');
 
-    // Initialize the CSS manager
-    console.log('1. Initializing CSS manager...');
+    // Initialize
+    console.log('1. Initializing...');
     const initResult = cssManager.initialize();
-    
     if (initResult.tag === 'err') {
-        console.error('Failed to initialize:', initResult.val);
-        console.error('\nMake sure Firefox is running with Marionette enabled on port 2828');
+        console.error('Failed:', initResult.val);
+        console.error('\nEnsure Firefox is running with Marionette on port 2828');
         process.exit(1);
     }
-    console.log('   ✓ Initialized:', initResult.val);
+    console.log('   ✓', initResult.val);
 
-    // Load some CSS
+    // Load CSS
     console.log('\n2. Loading CSS...');
     const css = `
-        #nav-bar {
-            background: linear-gradient(to right, #667eea, #764ba2) !important;
-        }
-        
-        .tab-background {
-            background: #1a1a1a !important;
-        }
+        #nav-bar { background: linear-gradient(to right, #667eea, #764ba2) !important; }
+        .tab-background { background: #1a1a1a !important; }
     `;
     
     const loadResult = cssManager.loadCss(css, 'example-theme');
-    
     if (loadResult.tag === 'err') {
-        console.error('Failed to load CSS:', loadResult.val);
+        console.error('Failed:', loadResult.val);
         process.exit(1);
     }
-    console.log('   ✓ CSS loaded with ID:', loadResult.val);
+    console.log('   ✓ Loaded with ID:', loadResult.val);
 
-    // List loaded CSS
+    // List loaded sheets
     console.log('\n3. Listing loaded CSS...');
     const listResult = cssManager.listLoaded();
-    
     if (listResult.tag === 'ok') {
-        console.log('   Loaded CSS IDs:', listResult.val);
+        console.log('   Loaded IDs:', listResult.val);
     }
 
-    // Wait a bit so you can see the changes
-    console.log('\n4. Waiting 5 seconds (check Firefox to see the changes)...');
+    // Wait to see changes
+    console.log('\n4. Waiting 5 seconds (check Firefox)...');
     await new Promise(resolve => setTimeout(resolve, 5000));
 
-    // Unload the CSS
+    // Unload
     console.log('\n5. Unloading CSS...');
     const unloadResult = cssManager.unloadCss('example-theme');
-    
-    if (unloadResult.tag === 'ok' && unloadResult.val) {
-        console.log('   ✓ CSS unloaded successfully');
-    } else {
-        console.log('   ✗ Failed to unload CSS');
+    console.log(unloadResult.tag === 'ok' && unloadResult.val ? '   ✓ Unloaded' : '   ✗ Failed');
+
+    // Verify
+    const finalList = cssManager.listLoaded();
+    if (finalList.tag === 'ok') {
+        console.log('   Remaining:', finalList.val);
     }
 
-    // Verify it's gone
-    const finalListResult = cssManager.listLoaded();
-    if (finalListResult.tag === 'ok') {
-        console.log('   Remaining CSS IDs:', finalListResult.val);
-    }
-
-    console.log('\n✓ Example completed successfully!');
+    console.log('\n✓ Completed successfully!');
 }
 
 main().catch(err => {
