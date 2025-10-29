@@ -10,10 +10,13 @@ A tool to develop userChrome CSS for Firefox using the Marionette protocol.
 - Register chrome.manifest files for modular CSS development
 - Screenshot capture for browser UI elements
 - Watch mode for automatic CSS reload on file changes
+- **JavaScript/TypeScript bindings via WebAssembly Components (jco)**
 
 ## Implementation
 
 Uses Firefox Marionette protocol to execute JavaScript in chrome-privileged context, providing access to XPCOM components like `nsIStyleSheetService` for CSS injection.
+
+Key Rust functions are exposed to JavaScript using [jco](https://github.com/bytecodealliance/jco) and WebAssembly Component Model. See [docs/jco-integration.md](docs/jco-integration.md) for details.
 
 See [docs/chrome-context.md](docs/chrome-context.md) for details on chrome context implementation.
 
@@ -175,12 +178,36 @@ npm install
 npm test
 ```
 
+## Using from JavaScript/TypeScript
+
+You can use the key functions from JavaScript via WebAssembly Components:
+
+```bash
+# Build the component and transpile to JS
+npm run build:component
+```
+
+```javascript
+import { cssManager, marionette } from './dist/mus_uc_devtools.js';
+
+// Initialize and load CSS
+cssManager.initialize();
+cssManager.loadCss('#nav-bar { background: blue; }', 'my-theme');
+
+// Execute JavaScript in Firefox
+marionette.connect('localhost', 2828);
+marionette.executeScript('return Services.appinfo.version;');
+```
+
+See [docs/jco-integration.md](docs/jco-integration.md) and `examples/jco/` for details.
+
 ## Documentation
 
 - [Chrome Context](docs/chrome-context.md)
 - [Chrome Manifest](docs/chrome-manifest.md)
 - [Screenshot](docs/screenshot.md)
 - [Testing](docs/testing.md)
+- [JavaScript Integration with jco](docs/jco-integration.md)
 
 ## Credits
 

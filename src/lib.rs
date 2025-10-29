@@ -11,6 +11,9 @@ pub mod chrome_manifest;
 pub mod marionette_client;
 pub mod screenshot;
 
+#[cfg(feature = "component")]
+pub mod component;
+
 // Re-export main types
 pub use chrome_css_manager::ChromeCSSManager;
 pub use chrome_manifest::ChromeManifestRegistrar;

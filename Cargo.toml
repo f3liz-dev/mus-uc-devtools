@@ -24,10 +24,12 @@ tempfile = "3.8"
 base64 = "0.21"
 notify = "8.2"
 wasm-bindgen = { version = "0.2", optional = true }
+wit-bindgen = { version = "0.41", optional = true }
 
 [features]
 default = []
 wasm = ["wasm-bindgen"]
+component = ["wit-bindgen"]
 
 [[bin]]
 name = "mus-uc"

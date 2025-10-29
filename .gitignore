@@ -35,3 +35,9 @@ bin/
 
 # wasm-pack output
 pkg/
+
+# jco transpiled output
+dist/
+
+# Generated bindings
+src/bindings.rs
