@@ -2,6 +2,12 @@
 
 This directory contains examples of using the MCP server for LLM-driven Firefox chrome testing.
 
+## Files
+
+- `README.md` - This file with usage examples
+- `integration-example.js` - Complete Node.js integration example
+- `simple-cli.sh` - Simple bash script for command-line usage
+
 ## Running the Examples
 
 1. **Start Firefox with Marionette enabled**:
@@ -10,12 +16,20 @@ This directory contains examples of using the MCP server for LLM-driven Firefox 
    - Set `marionette.port` to `2828`
    - Restart Firefox
 
-2. **Start the MCP server**:
+2. **Install dependencies**:
    ```bash
-   npm run mcp
+   npm install
    ```
 
-3. **Configure your MCP client** to use the server.
+3. **Run examples**:
+   ```bash
+   # Node.js integration example
+   node examples/mcp/integration-example.js
+   
+   # Simple CLI
+   ./examples/mcp/simple-cli.sh info
+   ./examples/mcp/simple-cli.sh screenshot
+   ```
 
 ## Example Use Cases
 
