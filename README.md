@@ -28,7 +28,13 @@ See [docs/chrome-context.md](docs/chrome-context.md) for details on chrome conte
 Run the MCP server to enable LLM-driven Firefox chrome testing:
 
 ```bash
+# Install from jsr.io
+npx jsr add @f3liz/mus-uc-devtools
+
+# Or install dependencies if working from source
 npm install
+
+# Start the MCP server
 npm run mcp
 ```
 
@@ -156,20 +162,26 @@ return { greeting: `Hello ${name}!`, count: count * 2 };
 
 ## Installation
 
+### From jsr.io (recommended)
+
+```bash
+# Using Deno
+deno add @f3liz/mus-uc-devtools
+
+# Using npm
+npx jsr add @f3liz/mus-uc-devtools
+
+# Using Yarn
+yarn dlx jsr add @f3liz/mus-uc-devtools
+
+# Using pnpm
+pnpm dlx jsr add @f3liz/mus-uc-devtools
+```
+
 ### From npm
 
 ```bash
 npm install mus-uc-devtools
-```
-
-### From jsr.io
-
-```bash
-# Using Deno
-deno add @f3liz-dev/mus-uc-devtools
-
-# Using npm
-npx jsr add @f3liz-dev/mus-uc-devtools
 ```
 
 ### Building from source

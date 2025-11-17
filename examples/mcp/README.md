@@ -18,6 +18,13 @@ This directory contains examples of using the MCP server for LLM-driven Firefox 
 
 2. **Install dependencies**:
    ```bash
+   # From jsr.io (recommended)
+   npx jsr add @f3liz/mus-uc-devtools
+   
+   # Or from npm
+   npm install mus-uc-devtools
+   
+   # Or install dev dependencies if working from source
    npm install
    ```
 
