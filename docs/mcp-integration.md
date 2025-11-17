@@ -6,11 +6,8 @@ This guide shows how to integrate the mus-uc-devtools MCP server with various MC
 
 1. Install mus-uc-devtools:
    ```bash
-   # From jsr.io (recommended)
+   # From jsr.io
    npx jsr add @f3liz/mus-uc-devtools
-   
-   # Or from npm
-   npm install mus-uc-devtools
    ```
 
 2. Enable Firefox Marionette:
@@ -104,29 +101,13 @@ npx jsr add @f3liz/mus-uc-devtools
 npm run mcp
 ```
 
-Or with npm package:
-
-```bash
-npx mus-uc-devtools mcp
-```
-
-Or with the CLI wrapper:
-
-```bash
-npx mus-uc-devtools mcp-cli test
-npx mus-uc-devtools mcp-cli exec "return Services.appinfo.version;"
-```
-
 ### Method 4: Global Installation
 
 Install globally for system-wide access:
 
 ```bash
-# From jsr.io (recommended)
+# From jsr.io
 npx jsr add -g @f3liz/mus-uc-devtools
-
-# Or from npm
-npm install -g mus-uc-devtools
 ```
 
 Then use in any MCP client configuration:

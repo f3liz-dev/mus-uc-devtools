@@ -33,11 +33,8 @@ The MCP server exposes Firefox chrome testing capabilities through a standardize
 ## Installation
 
 ```bash
-# Install from jsr.io (recommended)
+# Install from jsr.io
 npx jsr add @f3liz/mus-uc-devtools
-
-# Or from npm
-npm install mus-uc-devtools
 
 # Or install dependencies if working from source
 npm install

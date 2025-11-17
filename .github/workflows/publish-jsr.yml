@@ -1,0 +1,47 @@
+name: Publish to JSR
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install Node.js dependencies
+        run: npm ci
+      
+      - name: Build WASI binary
+        run: npm run build
+      
+      - name: Verify build artifacts
+        run: |
+          ls -lh bin/mus-uc.wasm
+          ls -lh src/mcp-server.js
+          ls -lh src/mcp-cli.js
+          ls -lh docs/mcp-server.md
+          ls -lh docs/mcp-integration.md
+      
+      - name: Publish to JSR
+        run: npx jsr publish --allow-dirty

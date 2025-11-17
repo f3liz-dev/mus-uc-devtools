@@ -162,7 +162,7 @@ return { greeting: `Hello ${name}!`, count: count * 2 };
 
 ## Installation
 
-### From jsr.io (recommended)
+### From jsr.io
 
 ```bash
 # Using Deno
@@ -176,12 +176,6 @@ yarn dlx jsr add @f3liz/mus-uc-devtools
 
 # Using pnpm
 pnpm dlx jsr add @f3liz/mus-uc-devtools
-```
-
-### From npm
-
-```bash
-npm install mus-uc-devtools
 ```
 
 ### Building from source
