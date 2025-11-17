@@ -5,7 +5,7 @@
 # For format details, see: https://gh.io/customagents/config
 
 name: mus-uc-devtools Agent
-description:
+description: Agent for developing Firefox chrome devtools
 ---
 
 # mus-uc-devtools Agent
