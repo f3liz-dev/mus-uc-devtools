@@ -38,7 +38,22 @@ The MCP server exposes tools for:
 - Loading/unloading CSS for UI testing
 - Managing stateful test sessions
 
-See [docs/mcp-server.md](docs/mcp-server.md) for complete MCP documentation.
+#### Quick Test with CLI Wrapper
+
+Test the MCP server without an MCP client:
+
+```bash
+# Test server is working
+node src/mcp-cli.js test
+
+# Execute JavaScript
+node src/mcp-cli.js exec "return Services.appinfo.version;"
+
+# Take screenshot
+node src/mcp-cli.js screenshot "#nav-bar"
+```
+
+See [docs/mcp-server.md](docs/mcp-server.md) for complete MCP documentation and [docs/mcp-integration.md](docs/mcp-integration.md) for integration guides.
 
 ### Configure with Your MCP Client
 
@@ -239,6 +254,7 @@ See [docs/jco-integration.md](docs/jco-integration.md) and `examples/jco/` for d
 ## Documentation
 
 - [MCP Server](docs/mcp-server.md) - LLM-friendly testing server
+- [MCP Integration](docs/mcp-integration.md) - Client integration guide
 - [Chrome Context](docs/chrome-context.md)
 - [Chrome Manifest](docs/chrome-manifest.md)
 - [Screenshot](docs/screenshot.md)

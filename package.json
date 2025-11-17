@@ -6,7 +6,8 @@
   "main": "index.js",
   "bin": {
     "mus-uc": "./bin/mus-uc.wasm",
-    "mus-uc-mcp": "./src/mcp-server.js"
+    "mus-uc-mcp": "./src/mcp-server.js",
+    "mus-uc-mcp-cli": "./src/mcp-cli.js"
   },
   "scripts": {
     "test": "node tests/headless-test.js",
@@ -21,7 +22,10 @@
     "bin/mus-uc.wasm",
     "index.js",
     "src/mcp-server.js",
+    "src/mcp-cli.js",
     "docs/mcp-server.md",
+    "docs/mcp-integration.md",
+    "examples/mcp/",
     "README.md"
   ],
   "keywords": [
