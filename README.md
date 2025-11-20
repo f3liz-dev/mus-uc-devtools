@@ -1,6 +1,6 @@
 # mus-uc-devtools
 
-A tool to develop userChrome CSS for Firefox using the Marionette protocol.
+A tool to develop userChrome CSS for Firefox using the Marionette protocol, with LLM-friendly MCP server integration.
 
 <img width="128px" height="128px" src=".github/assets/mus-css.png" alt="mus-uc-devtools logo"></img>
 
@@ -10,6 +10,7 @@ A tool to develop userChrome CSS for Firefox using the Marionette protocol.
 - Register chrome.manifest files for modular CSS development
 - Screenshot capture for browser UI elements
 - Watch mode for automatic CSS reload on file changes
+- **MCP (Model Context Protocol) server for LLM-driven testing**
 - **JavaScript/TypeScript bindings via WebAssembly Components (jco)**
 
 ## Implementation
@@ -19,6 +20,61 @@ Uses Firefox Marionette protocol to execute JavaScript in chrome-privileged cont
 Key Rust functions are exposed to JavaScript using [jco](https://github.com/bytecodealliance/jco) and WebAssembly Component Model. See [docs/jco-integration.md](docs/jco-integration.md) for details.
 
 See [docs/chrome-context.md](docs/chrome-context.md) for details on chrome context implementation.
+
+## Quick Start
+
+### MCP Server for LLM Integration
+
+Run the MCP server to enable LLM-driven Firefox chrome testing:
+
+```bash
+# Install from jsr.io
+npx jsr add @f3liz/mus-uc-devtools
+
+# Or install dependencies if working from source
+npm install
+
+# Start the MCP server
+npm run mcp
+```
+
+The MCP server exposes tools for:
+- Executing JavaScript in Firefox chrome context
+- Capturing screenshots for visual verification
+- Loading/unloading CSS for UI testing
+- Managing stateful test sessions
+
+#### Quick Test with CLI Wrapper
+
+Test the MCP server without an MCP client:
+
+```bash
+# Test server is working
+node src/mcp-cli.js test
+
+# Execute JavaScript
+node src/mcp-cli.js exec "return Services.appinfo.version;"
+
+# Take screenshot
+node src/mcp-cli.js screenshot "#nav-bar"
+```
+
+See [docs/mcp-server.md](docs/mcp-server.md) for complete MCP documentation and [docs/mcp-integration.md](docs/mcp-integration.md) for integration guides.
+
+### Configure with Your MCP Client
+
+Add to your MCP client configuration:
+
+```json
+{
+  "mcpServers": {
+    "firefox-testing": {
+      "command": "node",
+      "args": ["/path/to/mus-uc-devtools/src/mcp-server.js"]
+    }
+  }
+}
+```
 
 ## Usage
 
@@ -106,20 +162,20 @@ return { greeting: `Hello ${name}!`, count: count * 2 };
 
 ## Installation
 
-### From npm
-
-```bash
-npm install mus-uc-devtools
-```
-
 ### From jsr.io
 
 ```bash
 # Using Deno
-deno add @f3liz-dev/mus-uc-devtools
+deno add @f3liz/mus-uc-devtools
 
 # Using npm
-npx jsr add @f3liz-dev/mus-uc-devtools
+npx jsr add @f3liz/mus-uc-devtools
+
+# Using Yarn
+yarn dlx jsr add @f3liz/mus-uc-devtools
+
+# Using pnpm
+pnpm dlx jsr add @f3liz/mus-uc-devtools
 ```
 
 ### Building from source
@@ -203,6 +259,8 @@ See [docs/jco-integration.md](docs/jco-integration.md) and `examples/jco/` for d
 
 ## Documentation
 
+- [MCP Server](docs/mcp-server.md) - LLM-friendly testing server
+- [MCP Integration](docs/mcp-integration.md) - Client integration guide
 - [Chrome Context](docs/chrome-context.md)
 - [Chrome Manifest](docs/chrome-manifest.md)
 - [Screenshot](docs/screenshot.md)

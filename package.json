@@ -2,22 +2,21 @@
   "name": "mus-uc-devtools",
   "version": "0.1.0",
   "description": "A tool to develop userChrome CSS for Firefox using the Marionette protocol",
+  "type": "module",
   "main": "index.js",
   "bin": {
-    "mus-uc": "./bin/mus-uc.wasm"
+    "mus-uc": "./bin/mus-uc.wasm",
+    "mus-uc-mcp": "./src/mcp-server.js",
+    "mus-uc-mcp-cli": "./src/mcp-cli.js"
   },
   "scripts": {
     "test": "node tests/headless-test.js",
+    "test:mcp": "node tests/mcp-test.js",
+    "mcp": "node src/mcp-server.js",
     "build": "cargo build --release --target wasm32-wasip1 && mkdir -p bin && cp target/wasm32-wasip1/release/mus-uc.wasm bin/",
     "build:wasm-pack": "wasm-pack build --target nodejs --out-dir pkg --release",
-    "build:component": "cargo component build --release --features component && npx jco transpile target/wasm32-wasip1/release/mus_uc_devtools.wasm -o dist && echo '{\"type\": \"module\"}' > dist/package.json",
-    "prepublishOnly": "npm run build"
+    "build:component": "cargo component build --release --features component && npx jco transpile target/wasm32-wasip1/release/mus_uc_devtools.wasm -o dist && echo '{\"type\": \"module\"}' > dist/package.json"
   },
-  "files": [
-    "bin/mus-uc.wasm",
-    "index.js",
-    "README.md"
-  ],
   "keywords": [
     "firefox",
     "userchrome",
@@ -25,7 +24,10 @@
     "marionette",
     "devtools",
     "wasm",
-    "wasi"
+    "wasi",
+    "mcp",
+    "llm",
+    "testing"
   ],
   "author": "",
   "license": "MIT",
@@ -39,5 +41,8 @@
   "devDependencies": {
     "@bytecodealliance/jco": "^1.15.2",
     "@puppeteer/browsers": "^2.4.1"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.22.0"
   }
 }
