@@ -20,7 +20,7 @@ use exports::mus_uc::devtools::client::{
 };
 // Import the generated client module so we can reference the exported resource
 // type `client::Connection` when returning from `connect`.
-use exports::mus_uc::devtools::client as client;
+use exports::mus_uc::devtools::client;
 
 #[cfg(feature = "component")]
 pub struct Component;
