@@ -1,16 +1,14 @@
 {
   "name": "@f3liz/mus-uc-devtools",
   "version": "0.1.0",
-  "exports": "./index.js",
+  "exports": "./src/index.js",
   "publish": {
     "include": [
-      "bin/mus-uc.wasm",
-      "index.js",
+      "src/index.js",
+      "src/index.d.ts",
       "src/mcp-server.js",
       "src/mcp-cli.js",
-      "docs/mcp-server.md",
-      "docs/mcp-integration.md",
-      "examples/mcp/",
+      "dist",
       "README.md",
       "LICENSE"
     ]
