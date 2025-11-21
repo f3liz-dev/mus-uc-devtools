@@ -1,3 +1,4 @@
+/* @ts-self-types="./index.d.ts"*/
 /**
  * mus-uc-devtools
  * A tool to develop userChrome CSS for Firefox using the Marionette protocol

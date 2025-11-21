@@ -51,6 +51,7 @@
     "@puppeteer/browsers": "^2.4.1"
   },
   "dependencies": {
+    "@bytecodealliance/preview2-shim": "^0.17.5",
     "@modelcontextprotocol/sdk": "^1.22.0"
   }
 }
