@@ -15,143 +15,145 @@ wit_bindgen::generate!({
 });
 
 #[cfg(feature = "component")]
-use exports::mus_uc::devtools::{
-    css_manager::{ResultBool, ResultList, ResultString},
-    marionette::ResultString as MarionetteResultString,
-    screenshot::ResultBytes,
+use exports::mus_uc::devtools::client::{
+    Guest, GuestConnection, ResultBool, ResultBytes, ResultList, ResultString,
 };
+// Import the generated client module so we can reference the exported resource
+// type `client::Connection` when returning from `connect`.
+use exports::mus_uc::devtools::client as client;
 
 #[cfg(feature = "component")]
-static CSS_MANAGER: Mutex<Option<ChromeCSSManager>> = Mutex::new(None);
+pub struct Component;
 
 #[cfg(feature = "component")]
-const NOT_INITIALIZED: &str = "CSS Manager not initialized. Call initialize() first.";
-
-#[cfg(feature = "component")]
-struct CssManager;
-
-#[cfg(feature = "component")]
-impl exports::mus_uc::devtools::css_manager::Guest for CssManager {
-    fn initialize() -> ResultString {
-        ChromeCSSManager::new()
-            .and_then(|mut m| m.initialize_chrome_context().map(|_| m))
-            .map(|m| {
-                *CSS_MANAGER.lock().unwrap() = Some(m);
-                ResultString::Ok("initialized".to_string())
-            })
-            .unwrap_or_else(|e| ResultString::Err(e.to_string()))
-    }
-
-    fn load_css(content: String, id: Option<String>) -> ResultString {
-        CSS_MANAGER
-            .lock()
-            .unwrap()
-            .as_mut()
-            .ok_or_else(|| NOT_INITIALIZED.to_string())
-            .and_then(|m| m.load_css(&content, id.as_deref()).map_err(|e| e.to_string()))
-            .map(ResultString::Ok)
-            .unwrap_or_else(|e| ResultString::Err(e))
-    }
-
-    fn unload_css(id: String) -> ResultBool {
-        CSS_MANAGER
-            .lock()
-            .unwrap()
-            .as_mut()
-            .ok_or_else(|| NOT_INITIALIZED.to_string())
-            .and_then(|m| m.unload_css(&id).map_err(|e| e.to_string()))
-            .map(ResultBool::Ok)
-            .unwrap_or_else(|e| ResultBool::Err(e))
-    }
-
-    fn clear_all() -> ResultString {
-        CSS_MANAGER
-            .lock()
-            .unwrap()
-            .as_mut()
-            .ok_or_else(|| NOT_INITIALIZED.to_string())
-            .and_then(|m| m.clear_all().map(|_| "cleared".to_string()).map_err(|e| e.to_string()))
-            .map(ResultString::Ok)
-            .unwrap_or_else(|e| ResultString::Err(e))
-    }
-
-    fn list_loaded() -> ResultList {
-        CSS_MANAGER
-            .lock()
-            .unwrap()
-            .as_ref()
-            .ok_or_else(|| NOT_INITIALIZED.to_string())
-            .map(|m| ResultList::Ok(m.list_loaded()))
-            .unwrap_or_else(|e| ResultList::Err(e))
-    }
+pub struct Connection {
+    manager: Mutex<ChromeCSSManager>,
 }
 
 #[cfg(feature = "component")]
-static MARIONETTE_CONN: Mutex<Option<MarionetteConnection>> = Mutex::new(None);
+impl Guest for Component {
+    // The WIT-generated `Guest` trait expects the exported resource type
+    // defined in `exports::mus_uc::devtools::client::Connection`.
+    // Wrap our local `Connection` (which implements `GuestConnection`) using
+    // `client::Connection::new` when returning a new connection from `connect`.
+    type Connection = client::Connection;
 
-#[cfg(feature = "component")]
-const NOT_CONNECTED: &str = "Marionette not connected. Call connect() first.";
-
-#[cfg(feature = "component")]
-struct Marionette;
-
-#[cfg(feature = "component")]
-impl exports::mus_uc::devtools::marionette::Guest for Marionette {
-    fn connect(host: String, port: u16) -> MarionetteResultString {
-        MarionetteConnection::connect(&MarionetteSettings { host: host.clone(), port })
+    fn connect(host: String, port: u16) -> Result<Self::Connection, String> {
+        MarionetteConnection::connect(&MarionetteSettings { host, port })
             .and_then(|mut conn| {
                 conn.set_context("chrome")?;
                 Ok(conn)
             })
             .map(|conn| {
-                *MARIONETTE_CONN.lock().unwrap() = Some(conn);
-                MarionetteResultString::Ok(format!("Connected to {}:{}", host, port))
+                // construct our internal Connection type and wrap it with the
+                // WIT-generated resource type so it matches the expected return
+                // signature.
+                client::Connection::new(Connection {
+                    manager: Mutex::new(ChromeCSSManager::new_with_connection(conn)),
+                })
             })
-            .unwrap_or_else(|e| MarionetteResultString::Err(e.to_string()))
-    }
-
-    fn execute_script(script: String, args: Option<String>) -> MarionetteResultString {
-        MARIONETTE_CONN
-            .lock()
-            .unwrap()
-            .as_mut()
-            .ok_or_else(|| NOT_CONNECTED.to_string())
-            .and_then(|conn| {
-                let parsed_args = args.and_then(|a| serde_json::from_str(&a).ok());
-                conn.execute_script(&script, parsed_args)
-                    .map(|r| r.to_string())
-                    .map_err(|e| e.to_string())
-            })
-            .map(MarionetteResultString::Ok)
-            .unwrap_or_else(|e| MarionetteResultString::Err(e))
+            .map_err(|e| e.to_string())
     }
 }
 
 #[cfg(feature = "component")]
-struct Screenshot;
-
-#[cfg(feature = "component")]
-impl exports::mus_uc::devtools::screenshot::Guest for Screenshot {
-    fn take_screenshot(selector: Option<String>) -> ResultBytes {
-        MARIONETTE_CONN
+impl GuestConnection for Connection {
+    fn css_initialize(&self) -> ResultString {
+        self.manager
             .lock()
             .unwrap()
-            .as_mut()
-            .ok_or_else(|| "Marionette not connected. Call marionette.connect() first.".to_string())
-            .and_then(|conn| {
-                crate::screenshot::take_screenshot(conn, selector.as_deref())
-                    .map_err(|e| e.to_string())
-            })
+            .initialize_chrome_context()
+            .map(|_| "initialized".to_string())
+            .map(ResultString::Ok)
+            .unwrap_or_else(|e| ResultString::Err(e.to_string()))
+    }
+
+    fn css_load(&self, content: String, id: Option<String>) -> ResultString {
+        self.manager
+            .lock()
+            .unwrap()
+            .load_css(&content, id.as_deref())
+            .map(ResultString::Ok)
+            .unwrap_or_else(|e| ResultString::Err(e.to_string()))
+    }
+
+    fn css_unload(&self, id: String) -> ResultBool {
+        self.manager
+            .lock()
+            .unwrap()
+            .unload_css(&id)
+            .map(ResultBool::Ok)
+            .unwrap_or_else(|e| ResultBool::Err(e.to_string()))
+    }
+
+    fn css_clear_all(&self) -> ResultString {
+        self.manager
+            .lock()
+            .unwrap()
+            .clear_all()
+            .map(|_| "cleared".to_string())
+            .map(ResultString::Ok)
+            .unwrap_or_else(|e| ResultString::Err(e.to_string()))
+    }
+
+    fn css_list(&self) -> ResultList {
+        let mgr = self.manager.lock().unwrap();
+        ResultList::Ok(mgr.list_loaded())
+    }
+
+    fn execute(&self, script: String, args: Option<String>) -> ResultString {
+        let mut mgr = self.manager.lock().unwrap();
+        let parsed_args = args.and_then(|a| serde_json::from_str(&a).ok());
+        mgr.connection_mut()
+            .execute_script(&script, parsed_args)
+            .map(|r| r.to_string())
+            .map(ResultString::Ok)
+            .unwrap_or_else(|e| ResultString::Err(e.to_string()))
+    }
+
+    fn screenshot(&self, selector: Option<String>) -> ResultBytes {
+        let mut mgr = self.manager.lock().unwrap();
+        crate::screenshot::take_screenshot(mgr.connection_mut(), selector.as_deref())
             .map(ResultBytes::Ok)
-            .unwrap_or_else(|e| ResultBytes::Err(e))
+            .unwrap_or_else(|e| ResultBytes::Err(e.to_string()))
+    }
+}
+
+// Delegate the generated resource `client::Connection` to our local `Connection`
+// implementation. The WIT-generated exports expect the exported resource type to
+// implement `GuestConnection`. We already implemented the trait for our local
+// `Connection`; here we forward the calls so the exported resource works as
+// expected.
+#[cfg(feature = "component")]
+impl client::GuestConnection for client::Connection {
+    fn css_initialize(&self) -> ResultString {
+        self.get::<Connection>().css_initialize()
+    }
+
+    fn css_load(&self, content: String, id: Option<String>) -> ResultString {
+        self.get::<Connection>().css_load(content, id)
+    }
+
+    fn css_unload(&self, id: String) -> ResultBool {
+        self.get::<Connection>().css_unload(id)
+    }
+
+    fn css_clear_all(&self) -> ResultString {
+        self.get::<Connection>().css_clear_all()
+    }
+
+    fn css_list(&self) -> ResultList {
+        self.get::<Connection>().css_list()
+    }
+
+    fn execute(&self, script: String, args: Option<String>) -> ResultString {
+        self.get::<Connection>().execute(script, args)
+    }
+
+    fn screenshot(&self, selector: Option<String>) -> ResultBytes {
+        self.get::<Connection>().screenshot(selector)
     }
 }
 
 #[cfg(feature = "component")]
-exports::mus_uc::devtools::css_manager::__export_mus_uc_devtools_css_manager_0_1_0_cabi!(CssManager with_types_in exports::mus_uc::devtools::css_manager);
-
-#[cfg(feature = "component")]
-exports::mus_uc::devtools::marionette::__export_mus_uc_devtools_marionette_0_1_0_cabi!(Marionette with_types_in exports::mus_uc::devtools::marionette);
-
-#[cfg(feature = "component")]
-exports::mus_uc::devtools::screenshot::__export_mus_uc_devtools_screenshot_0_1_0_cabi!(Screenshot with_types_in exports::mus_uc::devtools::screenshot);
+export!(Component);

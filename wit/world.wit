@@ -1,8 +1,6 @@
 package mus-uc:devtools@0.1.0;
 
-/// Chrome CSS Manager interface for loading CSS into Firefox chrome context
-interface css-manager {
-    /// Result type for operations that may fail
+interface types {
     variant result-string {
         ok(string),
         err(string),
@@ -18,51 +16,33 @@ interface css-manager {
         err(string),
     }
 
-    /// Initialize the Chrome CSS manager
-    initialize: func() -> result-string;
-
-    /// Load CSS content into Firefox chrome context
-    /// Returns the sheet ID on success
-    load-css: func(content: string, id: option<string>) -> result-string;
-
-    /// Unload CSS by ID
-    unload-css: func(id: string) -> result-bool;
-
-    /// Clear all loaded CSS sheets
-    clear-all: func() -> result-string;
-
-    /// List all loaded CSS sheet IDs
-    list-loaded: func() -> result-list;
-}
-
-/// Marionette connection interface
-interface marionette {
-    variant result-string {
-        ok(string),
-        err(string),
-    }
-
-    /// Connect to Marionette server
-    connect: func(host: string, port: u16) -> result-string;
-
-    /// Execute JavaScript in chrome context
-    execute-script: func(script: string, args: option<string>) -> result-string;
-}
-
-/// Screenshot interface
-interface screenshot {
     variant result-bytes {
         ok(list<u8>),
         err(string),
     }
+}
 
-    /// Take a screenshot
-    /// selector: Optional CSS selector to screenshot specific element
-    take-screenshot: func(selector: option<string>) -> result-bytes;
+interface client {
+    use types.{result-string, result-bool, result-list, result-bytes};
+
+    resource connection {
+        // CSS Manager methods
+        css-initialize: func() -> result-string;
+        css-load: func(content: string, id: option<string>) -> result-string;
+        css-unload: func(id: string) -> result-bool;
+        css-clear-all: func() -> result-string;
+        css-list: func() -> result-list;
+
+        // Marionette methods
+        execute: func(script: string, args: option<string>) -> result-string;
+        
+        // Screenshot methods
+        screenshot: func(selector: option<string>) -> result-bytes;
+    }
+
+    connect: func(host: string, port: u16) -> result<connection, string>;
 }
 
 world mus-uc-component {
-    export css-manager;
-    export marionette;
-    export screenshot;
+    export client;
 }

@@ -16,12 +16,19 @@ impl ChromeCSSManager {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let mut connection = MarionetteConnection::connect(&MarionetteSettings::new())?;
         connection.set_context("chrome")?;
+        Ok(Self::new_with_connection(connection))
+    }
 
-        Ok(ChromeCSSManager {
+    pub fn new_with_connection(connection: MarionetteConnection) -> Self {
+        ChromeCSSManager {
             connection,
             loaded_sheets: HashMap::new(),
             manifest_registrar: ChromeManifestRegistrar::new(),
-        })
+        }
+    }
+
+    pub fn connection_mut(&mut self) -> &mut MarionetteConnection {
+        &mut self.connection
     }
 
     pub fn initialize_chrome_context(&mut self) -> Result<(), Box<dyn std::error::Error>> {

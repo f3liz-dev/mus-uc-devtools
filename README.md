@@ -236,29 +236,35 @@ npm test
 
 ## Using from JavaScript/TypeScript
 
-You can use the key functions from JavaScript via WebAssembly Components:
-
-```bash
-# Build the component and transpile to JS
-npm run build:component
-```
+You can use the library in your Node.js projects to control Firefox and manage userChrome CSS programmatically.
 
 ```javascript
-import { cssManager, marionette } from './dist/mus_uc_devtools.js';
+import { client } from '@f3liz/mus-uc-devtools';
 
-// Initialize and load CSS
-cssManager.initialize();
-cssManager.loadCss('#nav-bar { background: blue; }', 'my-theme');
+// Connect to Firefox
+const result = client.connect('localhost', 2828);
 
-// Execute JavaScript in Firefox
-marionette.connect('localhost', 2828);
-marionette.executeScript('return Services.appinfo.version;');
+if (result.tag === 'ok') {
+    const conn = result.val;
+
+    // Initialize and load CSS
+    conn.css.initialize();
+    conn.css.load('#nav-bar { background: blue !important; }', 'my-theme');
+
+    // Execute JavaScript
+    const execResult = conn.execute('return Services.appinfo.version;');
+    if (execResult.tag === 'ok') {
+        console.log('Firefox Version:', execResult.val);
+    }
+}
 ```
 
-See [docs/jco-integration.md](docs/jco-integration.md) and `examples/jco/` for details.
+See [docs/library-usage.md](docs/library-usage.md) for detailed usage instructions.
+For details on the underlying WebAssembly integration, see [docs/jco-integration.md](docs/jco-integration.md).
 
 ## Documentation
 
+- [Library Usage](docs/library-usage.md) - Guide for using as a Node.js library
 - [MCP Server](docs/mcp-server.md) - LLM-friendly testing server
 - [MCP Integration](docs/mcp-integration.md) - Client integration guide
 - [Chrome Context](docs/chrome-context.md)
